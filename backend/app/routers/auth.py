@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.permissions import assign_player_role
 from app.core.security import create_access_token, create_refresh_token, hash_token
 from app.esi import oauth as eve_oauth
 from app.models.character import Character
@@ -57,7 +58,8 @@ async def eve_callback(
     # Upsert User (keyed by character_name as username for now)
     result = await db.execute(select(User).where(User.username == character_name))
     user = result.scalar_one_or_none()
-    if user is None:
+    is_new_user = user is None
+    if is_new_user:
         user = User(username=character_name)
         db.add(user)
         await db.flush()
@@ -80,6 +82,9 @@ async def eve_callback(
         character.access_token = token_data["access_token"]
         character.refresh_token = token_data["refresh_token"]
         character.scopes = scopes
+
+    if is_new_user:
+        await assign_player_role(user.id, db)
 
     # Issue Helm JWT tokens
     access_token = create_access_token(user.id)

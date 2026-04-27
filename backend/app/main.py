@@ -29,7 +29,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Vue dev server
+    allow_origins=["http://localhost:5173", "https://develop.helm.dpdns.org"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

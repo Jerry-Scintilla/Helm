@@ -31,7 +31,8 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout() {
     if (refreshToken.value) {
       try {
-        await axios.post('http://localhost:8000/auth/logout', { refresh_token: refreshToken.value })
+        const base = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+        await axios.post(`${base}/auth/logout`, { refresh_token: refreshToken.value })
       } catch {}
     }
     accessToken.value = null
@@ -45,7 +46,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function loginWithEve() {
-    window.location.href = 'http://localhost:8000/auth/eve/login'
+    const base = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+    window.location.href = `${base}/auth/eve/login`
   }
 
   return { accessToken, refreshToken, characterId, characterName, isLoggedIn, setTokens, logout, loginWithEve }

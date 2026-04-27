@@ -3,11 +3,9 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.core.database import get_db
 from app.core.security import decode_access_token
-from app.models.rbac import Permission, RolePermission, UserRole
+from app.models.rbac import Permission, Role, RolePermission, UserRole
 from app.models.user import User
 
 security = HTTPBearer()
@@ -54,17 +52,6 @@ def require_permission(permission_name: str):
         if current_user.is_superuser:
             return current_user
 
-        # Load user roles → role permissions → permission names
-        result = await db.execute(
-            select(UserRole)
-            .where(UserRole.user_id == current_user.id)
-            .options(
-                selectinload(UserRole.role).selectinload(
-                    RolePermission.permission  # type: ignore[arg-type]
-                )
-            )
-        )
-        # Simpler approach: direct join query
         perm_result = await db.execute(
             select(Permission.name)
             .join(RolePermission, RolePermission.permission_id == Permission.id)
@@ -84,12 +71,52 @@ def require_permission(permission_name: str):
     return checker
 
 
+PLAYER_ROLE_NAME = "player"
+PLAYER_ROLE_PERMISSIONS = ["character.view"]
+
+
 async def seed_permissions(db: AsyncSession) -> None:
-    """Upsert built-in permissions on startup."""
+    """Upsert built-in permissions and the default player role on startup."""
     for perm_def in BUILTIN_PERMISSIONS:
-        result = await db.execute(
-            select(Permission).where(Permission.name == perm_def["name"])
-        )
+        result = await db.execute(select(Permission).where(Permission.name == perm_def["name"]))
         if result.scalar_one_or_none() is None:
             db.add(Permission(**perm_def))
+    await db.flush()
+
+    # Ensure the built-in player role exists
+    result = await db.execute(select(Role).where(Role.name == PLAYER_ROLE_NAME))
+    player_role = result.scalar_one_or_none()
+    if player_role is None:
+        player_role = Role(name=PLAYER_ROLE_NAME, description="所有通过EVE SSO注册的用户默认角色")
+        db.add(player_role)
+        await db.flush()
+
+    # Ensure player role has the required permissions
+    for perm_name in PLAYER_ROLE_PERMISSIONS:
+        perm_result = await db.execute(select(Permission).where(Permission.name == perm_name))
+        perm = perm_result.scalar_one_or_none()
+        if perm is None:
+            continue
+        existing = await db.execute(
+            select(RolePermission).where(
+                RolePermission.role_id == player_role.id,
+                RolePermission.permission_id == perm.id,
+            )
+        )
+        if existing.scalar_one_or_none() is None:
+            db.add(RolePermission(role_id=player_role.id, permission_id=perm.id))
+
     await db.commit()
+
+
+async def assign_player_role(user_id: int, db: AsyncSession) -> None:
+    """Assign the default player role to a newly registered user."""
+    result = await db.execute(select(Role).where(Role.name == PLAYER_ROLE_NAME))
+    player_role = result.scalar_one_or_none()
+    if player_role is None:
+        return
+    existing = await db.execute(
+        select(UserRole).where(UserRole.user_id == user_id, UserRole.role_id == player_role.id)
+    )
+    if existing.scalar_one_or_none() is None:
+        db.add(UserRole(user_id=user_id, role_id=player_role.id))

@@ -6,8 +6,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.permissions import seed_permissions
-from app.routers import auth, characters, admin
+from app.routers import auth, characters, admin, corporations, alliances, api_tokens
 from app.plugins.loader import load_plugins
+
+
+async def _ensure_default_bucket() -> None:
+    """Create a default bucket on first startup if none exist."""
+    from sqlalchemy import select, func
+    from app.models.bucket import Bucket
+    async with AsyncSessionLocal() as db:
+        count = (await db.execute(select(func.count()).select_from(Bucket))).scalar()
+        if count == 0:
+            db.add(Bucket(name="default", capacity=100, description="Default ESI refresh bucket"))
+            await db.commit()
 
 
 @asynccontextmanager
@@ -15,9 +26,10 @@ async def lifespan(app: FastAPI):
     # Startup
     async with AsyncSessionLocal() as db:
         await seed_permissions(db)
+    await _ensure_default_bucket()
     await load_plugins(app)
     yield
-    # Shutdown (nothing to clean up for now)
+    # Shutdown
 
 
 app = FastAPI(
@@ -37,6 +49,9 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(characters.router)
+app.include_router(corporations.router)
+app.include_router(alliances.router)
+app.include_router(api_tokens.router)
 app.include_router(admin.router)
 
 

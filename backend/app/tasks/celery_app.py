@@ -11,6 +11,17 @@ celery_app = Celery(
         "app.tasks.characters.skills",
         "app.tasks.characters.assets",
         "app.tasks.characters.mail",
+        "app.tasks.characters.wallet_journal",
+        "app.tasks.characters.wallet_transactions",
+        "app.tasks.characters.skill_queue",
+        "app.tasks.characters.notifications",
+        "app.tasks.corporations.info",
+        "app.tasks.corporations.members",
+        "app.tasks.corporations.wallet",
+        "app.tasks.corporations.assets",
+        "app.tasks.alliances.info",
+        "app.tasks.bucket.scheduler",
+        "app.tasks.bucket.runner",
     ],
 )
 
@@ -22,14 +33,44 @@ celery_app.conf.update(
     enable_utc=True,
     task_routes={
         "app.tasks.characters.*": {"queue": "characters"},
+        "app.tasks.corporations.*": {"queue": "corporations"},
+        "app.tasks.alliances.*": {"queue": "corporations"},
+        "app.tasks.bucket.*": {"queue": "bucket"},
         "app.tasks.high.*": {"queue": "high"},
     },
     beat_schedule={
+        # Character tasks — hourly
         "update-all-wallets": {
             "task": "app.tasks.characters.wallet.update_all_wallets",
             "schedule": 3600.0,
             "options": {"queue": "characters"},
         },
+        "update-all-wallet-journals": {
+            "task": "app.tasks.characters.wallet_journal.update_all_wallet_journals",
+            "schedule": 3600.0,
+            "options": {"queue": "characters"},
+        },
+        "update-all-wallet-transactions": {
+            "task": "app.tasks.characters.wallet_transactions.update_all_wallet_transactions",
+            "schedule": 3600.0,
+            "options": {"queue": "characters"},
+        },
+        "update-all-skill-queues": {
+            "task": "app.tasks.characters.skill_queue.update_all_skill_queues",
+            "schedule": 3600.0,
+            "options": {"queue": "characters"},
+        },
+        "update-all-notifications": {
+            "task": "app.tasks.characters.notifications.update_all_notifications",
+            "schedule": 1800.0,  # 30 minutes per spec
+            "options": {"queue": "characters"},
+        },
+        "update-all-mail": {
+            "task": "app.tasks.characters.mail.update_all_mail",
+            "schedule": 3600.0,
+            "options": {"queue": "characters"},
+        },
+        # Character tasks — daily
         "update-all-skills": {
             "task": "app.tasks.characters.skills.update_all_skills",
             "schedule": 86400.0,
@@ -40,10 +81,38 @@ celery_app.conf.update(
             "schedule": 3600.0,
             "options": {"queue": "characters"},
         },
-        "update-all-mail": {
-            "task": "app.tasks.characters.mail.update_all_mail",
+        # Corporation tasks — hourly
+        "sync-all-corporations": {
+            "task": "app.tasks.corporations.info.sync_all_corporations",
             "schedule": 3600.0,
-            "options": {"queue": "characters"},
+            "options": {"queue": "corporations"},
+        },
+        "sync-all-corporation-members": {
+            "task": "app.tasks.corporations.members.sync_all_corporation_members",
+            "schedule": 3600.0,
+            "options": {"queue": "corporations"},
+        },
+        "sync-all-corporation-wallets": {
+            "task": "app.tasks.corporations.wallet.sync_all_corporation_wallets",
+            "schedule": 3600.0,
+            "options": {"queue": "corporations"},
+        },
+        "sync-all-corporation-assets": {
+            "task": "app.tasks.corporations.assets.sync_all_corporation_assets",
+            "schedule": 3600.0,
+            "options": {"queue": "corporations"},
+        },
+        # Alliance tasks — daily
+        "sync-all-alliances": {
+            "task": "app.tasks.alliances.info.sync_all_alliances",
+            "schedule": 86400.0,
+            "options": {"queue": "corporations"},
+        },
+        # Bucket scheduler — every minute
+        "bucket-scheduler": {
+            "task": "app.tasks.bucket.scheduler.run_bucket_scheduler",
+            "schedule": 60.0,
+            "options": {"queue": "bucket"},
         },
     },
 )

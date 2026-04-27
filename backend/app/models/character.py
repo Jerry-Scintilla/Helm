@@ -25,11 +25,19 @@ class Character(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
     user: Mapped["User"] = relationship("User", back_populates="characters")
+    corporation_db_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("corporations.id", ondelete="SET NULL"), nullable=True)
+
     wallet: Mapped["CharacterWallet | None"] = relationship("CharacterWallet", back_populates="character", uselist=False, cascade="all, delete-orphan")
     skills: Mapped[list["CharacterSkill"]] = relationship("CharacterSkill", back_populates="character", cascade="all, delete-orphan")
     assets: Mapped[list["CharacterAsset"]] = relationship("CharacterAsset", back_populates="character", cascade="all, delete-orphan")
     mails: Mapped[list["CharacterMail"]] = relationship("CharacterMail", back_populates="character", cascade="all, delete-orphan")
+    wallet_journal: Mapped[list["CharacterWalletJournal"]] = relationship("CharacterWalletJournal", back_populates="character", cascade="all, delete-orphan")
+    wallet_transactions: Mapped[list["CharacterWalletTransaction"]] = relationship("CharacterWalletTransaction", back_populates="character", cascade="all, delete-orphan")
+    skill_queue: Mapped[list["CharacterSkillQueue"]] = relationship("CharacterSkillQueue", back_populates="character", cascade="all, delete-orphan")
+    notifications: Mapped[list["CharacterNotification"]] = relationship("CharacterNotification", back_populates="character", cascade="all, delete-orphan")
+    bucket_token: Mapped["BucketToken | None"] = relationship("BucketToken", back_populates="character", uselist=False)
 
 
 from app.models.user import User  # noqa: E402, F401
-from app.models.esi_data import CharacterWallet, CharacterSkill, CharacterAsset, CharacterMail  # noqa: E402, F401
+from app.models.esi_data import CharacterWallet, CharacterSkill, CharacterAsset, CharacterMail, CharacterWalletJournal, CharacterWalletTransaction, CharacterSkillQueue, CharacterNotification  # noqa: E402, F401
+from app.models.bucket import BucketToken  # noqa: E402, F401

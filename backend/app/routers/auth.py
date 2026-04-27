@@ -1,6 +1,7 @@
 import secrets
 from datetime import UTC, datetime, timedelta
 
+import redis.asyncio as aioredis
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from jose import JWTError
@@ -11,15 +12,36 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.permissions import assign_player_role
+from app.core.redis import get_pool
 from app.core.security import create_access_token, create_refresh_token, hash_token
 from app.esi import oauth as eve_oauth
 from app.models.character import Character
 from app.models.user import RefreshToken, User
+from app.tasks.celery_app import celery_app
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-# In-memory PKCE state store (in production use Redis)
-_state_store: dict[str, str] = {}  # state -> code_verifier
+_OAUTH_STATE_TTL = 600  # 10 minutes
+
+
+def _dispatch_initial_sync(character_db_id: int) -> None:
+    """Fire-and-forget ESI sync tasks for a freshly logged-in character."""
+    queue = "characters"
+    for task_name in (
+        "app.tasks.characters.wallet.update_wallet",
+        "app.tasks.characters.skills.update_skills",
+        "app.tasks.characters.assets.update_assets",
+        "app.tasks.characters.skill_queue.update_skill_queue",
+        "app.tasks.characters.notifications.update_notifications",
+        "app.tasks.characters.mail.update_mail",
+        "app.tasks.characters.wallet_journal.update_wallet_journal",
+        "app.tasks.characters.wallet_transactions.update_wallet_transactions",
+    ):
+        celery_app.send_task(task_name, args=[character_db_id], queue=queue)
+
+
+def _redis() -> aioredis.Redis:
+    return aioredis.Redis(connection_pool=get_pool())
 
 
 @router.get("/eve/login")
@@ -27,7 +49,8 @@ async def eve_login():
     """Redirect to EVE SSO login page."""
     state = secrets.token_urlsafe(16)
     login_url, verifier = eve_oauth.get_login_url(state)
-    _state_store[state] = verifier
+    async with _redis() as r:
+        await r.set(f"helm:oauth:state:{state}", verifier, ex=_OAUTH_STATE_TTL)
     return RedirectResponse(login_url)
 
 
@@ -38,7 +61,11 @@ async def eve_callback(
     db: AsyncSession = Depends(get_db),
 ):
     """Handle EVE SSO callback, create/update user, return JWT tokens."""
-    verifier = _state_store.pop(state, None)
+    async with _redis() as r:
+        key = f"helm:oauth:state:{state}"
+        verifier = await r.get(key)
+        if verifier is not None:
+            await r.delete(key)
     if verifier is None:
         raise HTTPException(status_code=400, detail="Invalid state parameter")
 
@@ -99,6 +126,9 @@ async def eve_callback(
     db.add(db_refresh)
     await db.commit()
 
+    # Trigger immediate ESI sync for this character
+    _dispatch_initial_sync(character.id)
+
     # Return tokens — in production set as HttpOnly cookies
     return {
         "access_token": access_token,
@@ -106,6 +136,7 @@ async def eve_callback(
         "token_type": "bearer",
         "character_id": character_id,
         "character_name": character_name,
+        "is_superuser": user.is_superuser,
     }
 
 

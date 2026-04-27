@@ -55,6 +55,37 @@ async def _update_mail(character: Character) -> None:
         await db.commit()
 
 
+async def _fetch_mail_bodies(character: Character) -> None:
+    """Fetch bodies for mails that have empty body."""
+    esi = get_esi_client()
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(CharacterMail).where(
+                CharacterMail.character_id == character.id,
+                CharacterMail.body == "",
+            ).limit(50)
+        )
+        empty_mails = list(result.scalars().all())
+
+    for mail in empty_mails:
+        try:
+            data = await esi.get(
+                f"/characters/{character.character_id}/mail/{mail.mail_id}/",
+                token=character.access_token,
+                refresh_token=character.refresh_token,
+                character_id=character.character_id,
+            )
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(select(CharacterMail).where(CharacterMail.id == mail.id))
+                row = result.scalar_one_or_none()
+                if row:
+                    row.body = data.get("body", "")
+                    row.updated_at = datetime.now(UTC)
+                    await db.commit()
+        except Exception:
+            continue
+
+
 @celery_app.task(name="app.tasks.characters.mail.update_mail")
 def update_mail(character_db_id: int) -> None:
     async def _run():
@@ -72,4 +103,5 @@ def update_all_mail() -> None:
         characters = await get_active_characters()
         for char in characters:
             await _update_mail(char)
+            await _fetch_mail_bodies(char)
     run_async(_run())

@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
 import api from '@/api'
 
-interface Character {
+interface CharacterSummary {
   character_id: number
   character_name: string
   corporation_id: number | null
@@ -12,8 +11,7 @@ interface Character {
 }
 
 const router = useRouter()
-const auth = useAuthStore()
-const characters = ref<Character[]>([])
+const characters = ref<CharacterSummary[]>([])
 const loading = ref(true)
 
 onMounted(async () => {
@@ -21,75 +19,153 @@ onMounted(async () => {
     const res = await api.get('/api/v1/characters/')
     characters.value = res.data
   } catch {
-    // Permission error or unauthenticated
+    // ignore
   } finally {
     loading.value = false
   }
 })
+
+function goCharacter(id: number) {
+  router.push(`/character/${id}/overview`)
+}
+
+function addCharacter() {
+  const base = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+  window.location.href = `${base}/auth/eve/login`
+}
 </script>
 
 <template>
-  <div class="dashboard">
-    <header class="topbar">
-      <span class="brand">Helm</span>
-      <div class="user-info">
-        <span>{{ auth.characterName }}</span>
-        <button @click="auth.logout().then(() => router.push('/login'))">退出</button>
-      </div>
-    </header>
+  <div>
+    <div class="page-header">
+      <h1 class="page-title h-serif">Dashboard</h1>
+      <n-button size="small" type="primary" @click="addCharacter">+ 添加角色</n-button>
+    </div>
 
-    <main class="content">
-      <h2>我的角色</h2>
-      <div v-if="loading" class="muted">加载中...</div>
-      <div v-else-if="characters.length === 0" class="muted">
-        暂无已绑定角色。请通过 EVE SSO 登录以绑定角色。
-      </div>
-      <div v-else class="character-list">
-        <div
-          v-for="char in characters"
-          :key="char.character_id"
-          class="character-card"
-          @click="router.push(`/character/${char.character_id}/overview`)"
-        >
-          <img
-            :src="`https://images.evetech.net/characters/${char.character_id}/portrait?size=64`"
-            :alt="char.character_name"
-            class="avatar"
-          />
-          <div>
-            <div class="char-name">{{ char.character_name }}</div>
-            <div class="char-meta">Corp ID: {{ char.corporation_id ?? '—' }}</div>
+    <n-spin v-if="loading" :size="24" class="spinner" />
+
+    <div v-else-if="characters.length === 0" class="empty-state">
+      <div class="empty-icon">◈</div>
+      <p class="empty-title">尚无已绑定角色</p>
+      <p class="empty-sub">通过 EVE SSO 登录以绑定你的 EVE Online 角色</p>
+      <n-button type="primary" style="margin-top:16px" @click="addCharacter">绑定 EVE 角色</n-button>
+    </div>
+
+    <div v-else class="character-grid">
+      <div
+        v-for="char in characters"
+        :key="char.character_id"
+        class="char-card"
+        @click="goCharacter(char.character_id)"
+      >
+        <img
+          :src="`https://images.evetech.net/characters/${char.character_id}/portrait?size=128`"
+          :alt="char.character_name"
+          class="char-portrait"
+        />
+        <div class="char-info">
+          <div class="char-name">{{ char.character_name }}</div>
+          <div class="char-meta">
+            <span v-if="char.corporation_id" class="meta-tag">
+              Corp {{ char.corporation_id }}
+            </span>
+            <span v-if="char.alliance_id" class="meta-tag">
+              Alliance {{ char.alliance_id }}
+            </span>
           </div>
         </div>
+        <div class="char-arrow">→</div>
       </div>
-    </main>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.dashboard { min-height: 100vh; background: #0d1117; color: #c9d1d9; }
-.topbar {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 12px 24px; background: #161b22; border-bottom: 1px solid #30363d;
+.page-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 28px;
 }
-.brand { font-size: 1.2rem; letter-spacing: 3px; color: #58a6ff; }
-.user-info { display: flex; gap: 16px; align-items: center; }
-.user-info button {
-  background: none; border: 1px solid #30363d; color: #8b949e;
-  padding: 4px 12px; border-radius: 6px; cursor: pointer;
+.page-title {
+  font-size: 1.8rem;
+  color: #faf9f5;
+  font-weight: 500;
+  line-height: 1.2;
 }
-.content { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
-h2 { color: #c9d1d9; margin-bottom: 24px; }
-.muted { color: #8b949e; }
-.character-list { display: flex; flex-wrap: wrap; gap: 16px; }
-.character-card {
-  display: flex; align-items: center; gap: 16px;
-  padding: 16px 20px; background: #161b22; border-radius: 8px;
-  border: 1px solid #30363d; cursor: pointer; transition: border-color 0.2s;
-  min-width: 240px;
+.spinner {
+  display: block;
+  margin: 60px auto;
 }
-.character-card:hover { border-color: #58a6ff; }
-.avatar { width: 48px; height: 48px; border-radius: 50%; }
-.char-name { font-weight: 600; }
-.char-meta { font-size: 0.85rem; color: #8b949e; margin-top: 4px; }
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: #87867f;
+}
+.empty-icon {
+  font-size: 3rem;
+  color: #30302e;
+  margin-bottom: 16px;
+}
+.empty-title {
+  font-size: 1.1rem;
+  color: #b0aea5;
+  margin-bottom: 8px;
+}
+.empty-sub {
+  font-size: 0.9rem;
+}
+.character-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.char-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: #1e1e1c;
+  border: 1px solid #30302e;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s;
+}
+.char-card:hover {
+  border-color: #c96442;
+  background: #252523;
+}
+.char-portrait {
+  width: 56px;
+  height: 56px;
+  border-radius: 6px;
+  border: 1px solid #30302e;
+  flex-shrink: 0;
+}
+.char-info {
+  flex: 1;
+  min-width: 0;
+}
+.char-name {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #faf9f5;
+  margin-bottom: 6px;
+}
+.char-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.meta-tag {
+  font-size: 0.78rem;
+  color: #87867f;
+  background: #30302e;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.char-arrow {
+  color: #5e5d59;
+  font-size: 1rem;
+}
 </style>

@@ -18,6 +18,7 @@ class User(Base):
     characters: Mapped[list["Character"]] = relationship("Character", back_populates="user", cascade="all, delete-orphan")
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
     user_roles: Mapped[list["UserRole"]] = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")
+    api_tokens: Mapped[list["APIToken"]] = relationship("APIToken", back_populates="user", cascade="all, delete-orphan")
 
 
 class RefreshToken(Base):
@@ -36,3 +37,4 @@ class RefreshToken(Base):
 # Import here to avoid circular imports
 from app.models.character import Character  # noqa: E402, F401
 from app.models.rbac import UserRole  # noqa: E402, F401
+from app.models.api_token import APIToken  # noqa: E402, F401

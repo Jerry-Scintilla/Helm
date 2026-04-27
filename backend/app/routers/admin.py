@@ -1,10 +1,18 @@
+import json
+
+import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.permissions import get_current_user, require_permission
+from app.core.redis import get_pool
+from app.models.alliance import Alliance
+from app.models.bucket import Bucket, BucketToken
+from app.models.character import Character
+from app.models.corporation import Corporation
 from app.models.rbac import Permission, Role, RolePermission, UserRole
 from app.models.user import User
 
@@ -116,3 +124,208 @@ async def list_permissions(
     result = await db.execute(select(Permission))
     perms = result.scalars().all()
     return [{"id": p.id, "name": p.name, "scope_type": p.scope_type} for p in perms]
+
+
+# ── Delete endpoints ──────────────────────────────────────────────────────────
+
+@router.delete("/users/{user_id}")
+async def deactivate_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("global.superuser")),
+):
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.is_active = False
+    await db.commit()
+    return {"detail": "User deactivated"}
+
+
+@router.delete("/users/{user_id}/roles/{role_id}")
+async def remove_user_role(
+    user_id: int,
+    role_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("global.superuser")),
+):
+    result = await db.execute(
+        select(UserRole).where(UserRole.user_id == user_id, UserRole.role_id == role_id)
+    )
+    user_role = result.scalar_one_or_none()
+    if user_role is None:
+        raise HTTPException(status_code=404, detail="Role assignment not found")
+    await db.delete(user_role)
+    await db.commit()
+    return {"detail": "Role removed"}
+
+
+@router.delete("/roles/{role_id}")
+async def delete_role(
+    role_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("global.superuser")),
+):
+    result = await db.execute(select(Role).where(Role.id == role_id))
+    role = result.scalar_one_or_none()
+    if role is None:
+        raise HTTPException(status_code=404, detail="Role not found")
+    await db.delete(role)
+    await db.commit()
+    return {"detail": "Role deleted"}
+
+
+@router.delete("/roles/{role_id}/permissions/{permission_id}")
+async def remove_role_permission(
+    role_id: int,
+    permission_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("global.superuser")),
+):
+    result = await db.execute(
+        select(RolePermission).where(
+            RolePermission.role_id == role_id,
+            RolePermission.permission_id == permission_id,
+        )
+    )
+    rp = result.scalar_one_or_none()
+    if rp is None:
+        raise HTTPException(status_code=404, detail="Permission assignment not found")
+    await db.delete(rp)
+    await db.commit()
+    return {"detail": "Permission removed"}
+
+
+# ── Buckets ───────────────────────────────────────────────────────────────────
+
+class BucketCreate(BaseModel):
+    name: str
+    capacity: int = 100
+    description: str = ""
+
+
+class BucketUpdate(BaseModel):
+    name: str | None = None
+    capacity: int | None = None
+    is_active: bool | None = None
+    description: str | None = None
+
+
+@router.get("/buckets/")
+async def list_buckets(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("global.superuser")),
+):
+    result = await db.execute(select(Bucket))
+    buckets = list(result.scalars().all())
+
+    r = aioredis.Redis(connection_pool=get_pool())
+    try:
+        response = []
+        for bucket in buckets:
+            token_count_result = await db.execute(
+                select(func.count()).select_from(BucketToken).where(BucketToken.bucket_id == bucket.id)
+            )
+            token_count = token_count_result.scalar() or 0
+
+            state_raw = await r.get(f"helm:bucket:{bucket.id}:state")
+            state = json.loads(state_raw) if state_raw else {}
+            response.append({
+                "id": bucket.id,
+                "name": bucket.name,
+                "capacity": bucket.capacity,
+                "is_active": bucket.is_active,
+                "description": bucket.description,
+                "created_at": bucket.created_at,
+                "state": {
+                    "token_count": token_count,
+                    "health": state.get("health", "unknown"),
+                    "last_run_at": state.get("last_run_at"),
+                    "active_task_count": state.get("active_task_count", 0),
+                },
+            })
+        return response
+    finally:
+        await r.aclose()
+
+
+@router.post("/buckets/")
+async def create_bucket(
+    body: BucketCreate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("global.superuser")),
+):
+    bucket = Bucket(name=body.name, capacity=body.capacity, description=body.description)
+    db.add(bucket)
+    await db.commit()
+    await db.refresh(bucket)
+    return {"id": bucket.id, "name": bucket.name, "capacity": bucket.capacity}
+
+
+@router.put("/buckets/{bucket_id}")
+async def update_bucket(
+    bucket_id: int,
+    body: BucketUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("global.superuser")),
+):
+    result = await db.execute(select(Bucket).where(Bucket.id == bucket_id))
+    bucket = result.scalar_one_or_none()
+    if bucket is None:
+        raise HTTPException(status_code=404, detail="Bucket not found")
+
+    if body.name is not None:
+        bucket.name = body.name
+    if body.capacity is not None:
+        bucket.capacity = body.capacity
+    if body.is_active is not None:
+        bucket.is_active = body.is_active
+    if body.description is not None:
+        bucket.description = body.description
+
+    await db.commit()
+    return {"detail": "Bucket updated"}
+
+
+@router.get("/buckets/{bucket_id}/tokens")
+async def get_bucket_tokens(
+    bucket_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("global.superuser")),
+):
+    result = await db.execute(select(BucketToken).where(BucketToken.bucket_id == bucket_id))
+    tokens = result.scalars().all()
+    return [
+        {
+            "character_id": t.character_id,
+            "last_refreshed_at": t.last_refreshed_at,
+            "refresh_count": t.refresh_count,
+            "error_count": t.error_count,
+        }
+        for t in tokens
+    ]
+
+
+# ── System stats ──────────────────────────────────────────────────────────────
+
+@router.get("/system/stats")
+async def system_stats(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("global.superuser")),
+):
+    users = (await db.execute(select(func.count()).select_from(User))).scalar()
+    chars = (await db.execute(select(func.count()).select_from(Character))).scalar()
+    corps = (await db.execute(select(func.count()).select_from(Corporation))).scalar()
+    alliances = (await db.execute(select(func.count()).select_from(Alliance))).scalar()
+    buckets = (await db.execute(select(func.count()).select_from(Bucket))).scalar()
+    bucket_tokens = (await db.execute(select(func.count()).select_from(BucketToken))).scalar()
+
+    return {
+        "total_users": users,
+        "total_characters": chars,
+        "total_corporations": corps,
+        "total_alliances": alliances,
+        "total_buckets": buckets,
+        "total_bucket_tokens": bucket_tokens,
+    }

@@ -23,5 +23,8 @@ class Settings(BaseSettings):
     celery_broker_url: str = "redis://127.0.0.1:6379/1"
     celery_result_backend: str = "redis://127.0.0.1:6379/2"
 
+    bucket_max_count: int = 30
+    bucket_min_refresh_interval: int = 3300  # 55 minutes in seconds
+
 
 settings = Settings()

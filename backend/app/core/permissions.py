@@ -16,7 +16,10 @@ BUILTIN_PERMISSIONS: list[dict] = [
     {"name": "global.plugin_manage", "scope_type": "global", "description": "管理插件"},
     {"name": "character.view", "scope_type": "character", "description": "查看角色数据"},
     {"name": "corporation.view", "scope_type": "corporation", "description": "查看公司数据"},
+    {"name": "corporation.manage_members", "scope_type": "corporation", "description": "管理公司成员"},
     {"name": "alliance.view", "scope_type": "alliance", "description": "查看联盟数据"},
+    {"name": "bucket.manage", "scope_type": "global", "description": "管理 Bucket 调度"},
+    {"name": "api.external_access", "scope_type": "global", "description": "外部 API Token 访问"},
 ]
 
 
@@ -72,7 +75,7 @@ def require_permission(permission_name: str):
 
 
 PLAYER_ROLE_NAME = "player"
-PLAYER_ROLE_PERMISSIONS = ["character.view"]
+PLAYER_ROLE_PERMISSIONS = ["character.view", "corporation.view", "alliance.view"]
 
 
 async def seed_permissions(db: AsyncSession) -> None:

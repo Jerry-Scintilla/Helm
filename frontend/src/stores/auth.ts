@@ -9,6 +9,7 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.getItem('character_id') ? Number(localStorage.getItem('character_id')) : null
   )
   const characterName = ref<string | null>(localStorage.getItem('character_name'))
+  const isSuperuser = ref<boolean>(localStorage.getItem('is_superuser') === 'true')
 
   const isLoggedIn = computed(() => !!accessToken.value)
 
@@ -17,15 +18,18 @@ export const useAuthStore = defineStore('auth', () => {
     refresh_token: string
     character_id: number
     character_name: string
+    is_superuser?: boolean
   }) {
     accessToken.value = data.access_token
     refreshToken.value = data.refresh_token
     characterId.value = data.character_id
     characterName.value = data.character_name
+    isSuperuser.value = data.is_superuser ?? false
     localStorage.setItem('access_token', data.access_token)
     localStorage.setItem('refresh_token', data.refresh_token)
     localStorage.setItem('character_id', String(data.character_id))
     localStorage.setItem('character_name', data.character_name)
+    localStorage.setItem('is_superuser', String(data.is_superuser ?? false))
   }
 
   async function logout() {
@@ -39,10 +43,12 @@ export const useAuthStore = defineStore('auth', () => {
     refreshToken.value = null
     characterId.value = null
     characterName.value = null
+    isSuperuser.value = false
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
     localStorage.removeItem('character_id')
     localStorage.removeItem('character_name')
+    localStorage.removeItem('is_superuser')
   }
 
   function loginWithEve() {
@@ -50,5 +56,5 @@ export const useAuthStore = defineStore('auth', () => {
     window.location.href = `${base}/auth/eve/login`
   }
 
-  return { accessToken, refreshToken, characterId, characterName, isLoggedIn, setTokens, logout, loginWithEve }
+  return { accessToken, refreshToken, characterId, characterName, isSuperuser, isLoggedIn, setTokens, logout, loginWithEve }
 })

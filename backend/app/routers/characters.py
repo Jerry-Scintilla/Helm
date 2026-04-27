@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.permissions import get_current_user, require_permission
+from app.core.permissions import require_permission
 from app.models.character import Character
-from app.models.esi_data import CharacterAsset, CharacterMail, CharacterSkill, CharacterWallet
+from app.models.esi_data import (
+    CharacterAsset, CharacterMail, CharacterSkill, CharacterWallet,
+    CharacterWalletJournal, CharacterWalletTransaction, CharacterSkillQueue, CharacterNotification,
+)
 from app.models.user import User
 
 router = APIRouter(prefix="/api/v1/characters", tags=["characters"])
@@ -150,4 +153,155 @@ async def get_mail(
             "is_read": m.is_read,
         }
         for m in mails
+    ]
+
+
+@router.get("/{character_id}/mail/{mail_id}")
+async def get_mail_detail(
+    character_id: int,
+    mail_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("character.view")),
+):
+    char = await _get_character_for_user(character_id, current_user, db)
+    result = await db.execute(
+        select(CharacterMail).where(
+            CharacterMail.character_id == char.id,
+            CharacterMail.mail_id == mail_id,
+        )
+    )
+    mail = result.scalar_one_or_none()
+    if mail is None:
+        raise HTTPException(status_code=404, detail="Mail not found")
+    return {
+        "mail_id": mail.mail_id,
+        "subject": mail.subject,
+        "from_id": mail.from_id,
+        "timestamp": mail.timestamp,
+        "is_read": mail.is_read,
+        "body": mail.body,
+    }
+
+
+@router.get("/{character_id}/wallet/journal")
+async def get_wallet_journal(
+    character_id: int,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("character.view")),
+):
+    char = await _get_character_for_user(character_id, current_user, db)
+    result = await db.execute(
+        select(CharacterWalletJournal)
+        .where(CharacterWalletJournal.character_id == char.id)
+        .order_by(CharacterWalletJournal.date.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )
+    entries = result.scalars().all()
+    return [
+        {
+            "id": e.id,
+            "journal_id": e.journal_id,
+            "date": e.date,
+            "ref_type": e.ref_type,
+            "first_party_id": e.first_party_id,
+            "second_party_id": e.second_party_id,
+            "amount": e.amount,
+            "balance": e.balance,
+            "description": e.description,
+        }
+        for e in entries
+    ]
+
+
+@router.get("/{character_id}/wallet/transactions")
+async def get_wallet_transactions(
+    character_id: int,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("character.view")),
+):
+    char = await _get_character_for_user(character_id, current_user, db)
+    result = await db.execute(
+        select(CharacterWalletTransaction)
+        .where(CharacterWalletTransaction.character_id == char.id)
+        .order_by(CharacterWalletTransaction.date.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )
+    entries = result.scalars().all()
+    return [
+        {
+            "transaction_id": e.transaction_id,
+            "date": e.date,
+            "type_id": e.type_id,
+            "location_id": e.location_id,
+            "unit_price": e.unit_price,
+            "quantity": e.quantity,
+            "client_id": e.client_id,
+            "is_buy": e.is_buy,
+        }
+        for e in entries
+    ]
+
+
+@router.get("/{character_id}/skillqueue")
+async def get_skill_queue(
+    character_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("character.view")),
+):
+    char = await _get_character_for_user(character_id, current_user, db)
+    result = await db.execute(
+        select(CharacterSkillQueue)
+        .where(CharacterSkillQueue.character_id == char.id)
+        .order_by(CharacterSkillQueue.queue_position)
+    )
+    queue = result.scalars().all()
+    return [
+        {
+            "queue_position": q.queue_position,
+            "skill_id": q.skill_id,
+            "finished_level": q.finished_level,
+            "start_date": q.start_date,
+            "finish_date": q.finish_date,
+            "level_start_sp": q.level_start_sp,
+            "level_end_sp": q.level_end_sp,
+        }
+        for q in queue
+    ]
+
+
+@router.get("/{character_id}/notifications")
+async def get_notifications(
+    character_id: int,
+    unread_only: bool = Query(False),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("character.view")),
+):
+    char = await _get_character_for_user(character_id, current_user, db)
+    stmt = (
+        select(CharacterNotification)
+        .where(CharacterNotification.character_id == char.id)
+        .order_by(CharacterNotification.timestamp.desc())
+        .limit(50)
+    )
+    if unread_only:
+        stmt = stmt.where(CharacterNotification.is_read == False)
+    result = await db.execute(stmt)
+    notifications = result.scalars().all()
+    return [
+        {
+            "notification_id": n.notification_id,
+            "type": n.type,
+            "sender_id": n.sender_id,
+            "sender_type": n.sender_type,
+            "timestamp": n.timestamp,
+            "is_read": n.is_read,
+            "text": n.text,
+        }
+        for n in notifications
     ]

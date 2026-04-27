@@ -6,137 +6,159 @@ import { useCharacterStore } from '@/stores/character'
 const route = useRoute()
 const router = useRouter()
 const charStore = useCharacterStore()
-
 const characterId = Number(route.params.id)
 
-onMounted(() => {
-  charStore.fetchAll(characterId)
-})
+onMounted(() => charStore.fetchAll(characterId))
 
-function formatIsk(isk: number | null) {
-  if (isk === null) return '—'
-  return isk.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) + ' ISK'
+function fmt(n: number | null, suffix = '') {
+  if (n === null) return '—'
+  return n.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) + suffix
 }
-
-function formatSp(sp: number) {
+function fmtSp(sp: number) {
   if (sp >= 1_000_000) return (sp / 1_000_000).toFixed(2) + ' M SP'
   if (sp >= 1_000) return (sp / 1_000).toFixed(1) + ' K SP'
   return sp + ' SP'
 }
-
-function formatDate(dt: string | null) {
+function fmtDate(dt: string | null) {
   if (!dt) return '—'
-  return new Date(dt).toLocaleString('zh-CN')
+  return new Date(dt).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+}
+
+function goTab(tab: string) {
+  router.push(`/character/${characterId}/${tab}`)
 }
 </script>
 
 <template>
-  <div class="overview-page">
-    <header class="topbar">
-      <button class="back-btn" @click="router.push('/dashboard')">← 返回</button>
-      <span class="brand">Helm</span>
-    </header>
+  <div>
+    <n-spin v-if="charStore.loading" :size="24" style="display:block;margin:60px auto;" />
+    <n-alert v-else-if="charStore.error" type="error" :title="charStore.error" />
 
-    <main class="content">
-      <div v-if="charStore.loading" class="muted">加载中...</div>
-      <div v-else-if="charStore.error" class="error">{{ charStore.error }}</div>
-
-      <template v-else-if="charStore.characterInfo">
-        <!-- Character header -->
-        <div class="char-header">
-          <img
-            :src="`https://images.evetech.net/characters/${characterId}/portrait?size=128`"
-            class="avatar"
-            :alt="charStore.characterInfo.character_name"
-          />
-          <div>
-            <h1>{{ charStore.characterInfo.character_name }}</h1>
-            <div class="char-meta">
-              Corp ID: {{ charStore.characterInfo.corporation_id ?? '—' }}
-              <span v-if="charStore.characterInfo.alliance_id">
-                · Alliance ID: {{ charStore.characterInfo.alliance_id }}
-              </span>
-            </div>
-            <div class="char-meta">
-              数据更新: {{ formatDate(charStore.characterInfo.updated_at) }}
-            </div>
+    <template v-else-if="charStore.characterInfo">
+      <!-- Character header -->
+      <div class="char-header">
+        <img
+          :src="`https://images.evetech.net/characters/${characterId}/portrait?size=128`"
+          class="portrait"
+          :alt="charStore.characterInfo.character_name"
+        />
+        <div class="char-meta">
+          <h1 class="char-name h-serif">{{ charStore.characterInfo.character_name }}</h1>
+          <div class="meta-row">
+            <span v-if="charStore.characterInfo.corporation_id" class="tag">
+              Corp {{ charStore.characterInfo.corporation_id }}
+            </span>
+            <span v-if="charStore.characterInfo.alliance_id" class="tag">
+              Alliance {{ charStore.characterInfo.alliance_id }}
+            </span>
           </div>
+          <div class="updated">更新于 {{ fmtDate(charStore.characterInfo.updated_at) }}</div>
         </div>
+      </div>
 
-        <!-- Stats grid -->
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-label">钱包余额</div>
-            <div class="stat-value">{{ formatIsk(charStore.wallet?.balance ?? null) }}</div>
-            <div class="stat-updated">更新于 {{ formatDate(charStore.wallet?.updated_at ?? null) }}</div>
-          </div>
-
-          <div class="stat-card">
-            <div class="stat-label">技能点</div>
-            <div class="stat-value">{{ formatSp(charStore.skills?.total_sp ?? 0) }}</div>
-            <div class="stat-updated">{{ charStore.skills?.skills.length ?? 0 }} 个技能</div>
-          </div>
+      <!-- Stat cards -->
+      <div class="stats-row">
+        <div class="stat-card" @click="goTab('wallet')">
+          <div class="stat-label">钱包余额</div>
+          <div class="stat-value">{{ fmt(charStore.wallet?.balance ?? null, ' ISK') }}</div>
+          <div class="stat-hint">点击查看明细 →</div>
         </div>
-
-        <!-- Skills list (top 10) -->
-        <div v-if="charStore.skills && charStore.skills.skills.length > 0" class="section">
-          <h3>技能列表（前 10）</h3>
-          <table class="skills-table">
-            <thead>
-              <tr>
-                <th>Skill ID</th>
-                <th>等级</th>
-                <th>技能点</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="skill in charStore.skills.skills.slice(0, 10)" :key="skill.skill_id">
-                <td>{{ skill.skill_id }}</td>
-                <td>{{ skill.trained_skill_level }}</td>
-                <td>{{ skill.skillpoints_in_skill.toLocaleString() }}</td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="stat-card" @click="goTab('skills')">
+          <div class="stat-label">技能点</div>
+          <div class="stat-value">{{ fmtSp(charStore.skills?.total_sp ?? 0) }}</div>
+          <div class="stat-hint">{{ charStore.skills?.skills.length ?? 0 }} 个技能 →</div>
         </div>
-      </template>
-    </main>
+        <div class="stat-card" @click="goTab('mail')">
+          <div class="stat-label">邮件</div>
+          <div class="stat-value">查看</div>
+          <div class="stat-hint">邮件列表 →</div>
+        </div>
+        <div class="stat-card" @click="goTab('notifications')">
+          <div class="stat-label">通知</div>
+          <div class="stat-value">查看</div>
+          <div class="stat-hint">通知列表 →</div>
+        </div>
+      </div>
+
+      <!-- Quick nav tabs -->
+      <div class="quick-nav">
+        <button class="qnav-btn" @click="goTab('wallet')">钱包</button>
+        <button class="qnav-btn" @click="goTab('skills')">技能</button>
+        <button class="qnav-btn" @click="goTab('assets')">资产</button>
+        <button class="qnav-btn" @click="goTab('mail')">邮件</button>
+        <button class="qnav-btn" @click="goTab('notifications')">通知</button>
+      </div>
+    </template>
   </div>
 </template>
 
 <style scoped>
-.overview-page { min-height: 100vh; background: #0d1117; color: #c9d1d9; }
-.topbar {
-  display: flex; align-items: center; gap: 16px;
-  padding: 12px 24px; background: #161b22; border-bottom: 1px solid #30363d;
+.char-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  margin-bottom: 28px;
 }
-.back-btn {
-  background: none; border: 1px solid #30363d; color: #8b949e;
-  padding: 4px 12px; border-radius: 6px; cursor: pointer;
+.portrait {
+  width: 96px;
+  height: 96px;
+  border-radius: 8px;
+  border: 1px solid #30302e;
+  flex-shrink: 0;
 }
-.brand { font-size: 1.1rem; letter-spacing: 3px; color: #58a6ff; }
-.content { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
-.muted { color: #8b949e; }
-.error { color: #f85149; }
+.char-meta { flex: 1; }
+.char-name {
+  font-size: 1.6rem;
+  color: #faf9f5;
+  margin-bottom: 8px;
+  line-height: 1.2;
+}
+.meta-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.tag {
+  font-size: 0.78rem;
+  color: #87867f;
+  background: #30302e;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.updated { font-size: 0.8rem; color: #5e5d59; }
 
-.char-header { display: flex; align-items: center; gap: 24px; margin-bottom: 32px; }
-.avatar { width: 100px; height: 100px; border-radius: 8px; }
-h1 { font-size: 1.8rem; margin: 0 0 8px; }
-.char-meta { color: #8b949e; font-size: 0.9rem; margin-top: 4px; }
-
-.stats-grid { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 32px; }
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
 .stat-card {
-  flex: 1; min-width: 200px; padding: 20px 24px;
-  background: #161b22; border-radius: 8px; border: 1px solid #30363d;
+  background: #1e1e1c;
+  border: 1px solid #30302e;
+  border-radius: 8px;
+  padding: 18px 20px;
+  cursor: pointer;
+  transition: border-color 0.18s;
 }
-.stat-label { font-size: 0.85rem; color: #8b949e; margin-bottom: 8px; }
-.stat-value { font-size: 1.4rem; font-weight: 700; color: #58a6ff; }
-.stat-updated { font-size: 0.8rem; color: #6e7681; margin-top: 6px; }
+.stat-card:hover { border-color: #c96442; }
+.stat-label { font-size: 0.8rem; color: #87867f; margin-bottom: 8px; }
+.stat-value { font-size: 1.2rem; font-weight: 500; color: #faf9f5; margin-bottom: 4px; }
+.stat-hint { font-size: 0.75rem; color: #5e5d59; }
 
-.section h3 { color: #c9d1d9; margin-bottom: 12px; }
-.skills-table { width: 100%; border-collapse: collapse; }
-.skills-table th, .skills-table td {
-  text-align: left; padding: 8px 12px;
-  border-bottom: 1px solid #21262d; font-size: 0.9rem;
+.quick-nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
-.skills-table th { color: #8b949e; font-weight: 500; }
+.qnav-btn {
+  background: #1e1e1c;
+  border: 1px solid #30302e;
+  color: #b0aea5;
+  padding: 6px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  transition: border-color 0.18s, color 0.18s;
+}
+.qnav-btn:hover {
+  border-color: #c96442;
+  color: #faf9f5;
+}
 </style>

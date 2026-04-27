@@ -23,6 +23,9 @@ wheels/
 venv/
 ENV/
 env/
+.env
+.env.*
+!.env.example
 .env/
 .vscode/
 
@@ -51,3 +54,6 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+# 文档
+Markdown/

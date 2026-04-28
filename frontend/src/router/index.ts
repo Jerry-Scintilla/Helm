@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { loadPluginRoutes } from '@/router/plugin-loader'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -99,11 +100,17 @@ const router = createRouter({
             { path: 'sde', name: 'admin-sde', component: () => import('@/views/admin/SdeView.vue') },
             { path: 'buckets', name: 'admin-buckets', component: () => import('@/views/admin/BucketsView.vue') },
             { path: 'tokens', name: 'admin-tokens', component: () => import('@/views/admin/ApiTokensView.vue') },
+            { path: 'plugins', name: 'admin-plugins', component: () => import('@/views/admin/PluginsView.vue') },
           ],
         },
       ],
     },
   ],
+})
+
+router.isReady().then(() => {
+  const auth = useAuthStore()
+  if (auth.isLoggedIn) loadPluginRoutes(router)
 })
 
 router.beforeEach((to) => {

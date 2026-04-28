@@ -7,7 +7,9 @@ from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.permissions import seed_permissions
 from app.routers import auth, characters, admin, corporations, alliances, api_tokens
+from app.routers.plugins import public_router as plugins_public_router, router as plugins_router
 from app.plugins.loader import load_plugins
+from app.plugins.events import stop_listener
 
 
 async def _ensure_default_bucket() -> None:
@@ -30,6 +32,7 @@ async def lifespan(app: FastAPI):
     await load_plugins(app)
     yield
     # Shutdown
+    await stop_listener()
 
 
 app = FastAPI(
@@ -53,6 +56,8 @@ app.include_router(corporations.router)
 app.include_router(alliances.router)
 app.include_router(api_tokens.router)
 app.include_router(admin.router)
+app.include_router(plugins_public_router)
+app.include_router(plugins_router)
 
 
 @app.get("/health")

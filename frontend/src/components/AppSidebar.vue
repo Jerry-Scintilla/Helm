@@ -3,10 +3,12 @@ import { computed, h, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import type { MenuOption } from 'naive-ui'
 import { useAuthStore } from '@/stores/auth'
+import { usePluginStore } from '@/stores/plugin'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
+const pluginStore = usePluginStore()
 const collapsed = ref(false)
 
 function icon(emoji: string) {
@@ -84,9 +86,29 @@ const menuOptions = computed<MenuOption[]>(() => {
         { label: 'SDE', key: '/admin/sde', icon: icon('·') },
         { label: 'Buckets', key: '/admin/buckets', icon: icon('·') },
         { label: 'API Token', key: '/admin/tokens', icon: icon('·') },
+        { label: '插件', key: '/admin/plugins', icon: icon('·') },
       ],
     })
   }
+
+  // Plugin sidebar items (from enabled plugins that declare sidebar_items in meta)
+  const pluginItems = pluginStore.plugins
+    .filter(p => p.is_enabled && p.meta?.sidebar_items?.length)
+    .flatMap(p =>
+      p.meta.sidebar_items
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .map(s => ({ label: s.label, key: s.route, icon: s.icon ? icon(s.icon) : icon('◦') }))
+    )
+  if (pluginItems.length > 0) {
+    items.push({
+      label: '插件',
+      key: 'plugin-group',
+      icon: icon('⬡'),
+      children: pluginItems,
+    })
+  }
+
   return items
 })
 

@@ -10,6 +10,7 @@ from app.models.alliance import Alliance, AllianceCorporation
 from app.models.sde import SDEType, SDEGroup, SDECategory
 from app.models.bucket import Bucket, BucketToken
 from app.models.api_token import APIToken
+from app.models.plugin import Plugin
 
 __all__ = [
     "User", "RefreshToken",
@@ -22,4 +23,5 @@ __all__ = [
     "SDEType", "SDEGroup", "SDECategory",
     "Bucket", "BucketToken",
     "APIToken",
+    "Plugin",
 ]

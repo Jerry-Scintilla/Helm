@@ -68,6 +68,7 @@ function fmtDate(dt: string | null) {
       >
         <div class="notif-header">
           <span class="notif-type">{{ notif.type }}</span>
+          <span v-if="notif.sender_name" class="notif-sender">{{ notif.sender_name }}</span>
           <span class="notif-date">{{ fmtDate(notif.timestamp) }}</span>
           <n-tag v-if="!notif.is_read" size="tiny" type="warning" style="margin-left:8px">未读</n-tag>
         </div>
@@ -100,6 +101,7 @@ function fmtDate(dt: string | null) {
   padding: 2px 8px;
   border-radius: 4px;
 }
+.notif-sender { font-size: 0.82rem; color: #d97757; }
 .notif-date { font-size: 0.78rem; color: #5e5d59; }
 .notif-text { font-size: 0.85rem; color: #87867f; line-height: 1.5; }
 </style>

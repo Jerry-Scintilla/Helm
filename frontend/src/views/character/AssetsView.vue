@@ -11,6 +11,7 @@ interface Asset {
   type_name?: SdeName | null
   location_id: number
   location_type: string
+  location_name: string | null
   quantity: number
   is_singleton: boolean
 }
@@ -28,7 +29,11 @@ const grouped = computed(() => {
     if (!map.has(a.location_id)) map.set(a.location_id, [])
     map.get(a.location_id)!.push(a)
   }
-  return Array.from(map.entries()).map(([loc, items]) => ({ loc, items }))
+  return Array.from(map.entries()).map(([loc, items]) => ({
+    loc,
+    items,
+    label: items[0]?.location_name ?? String(loc),
+  }))
 })
 
 onMounted(() => load())
@@ -57,7 +62,7 @@ async function load() {
         <n-collapse-item
           v-for="group in grouped"
           :key="group.loc"
-          :title="`Location ${group.loc}`"
+          :title="group.label"
           :name="group.loc"
         >
           <template #header-extra>

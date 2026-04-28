@@ -69,6 +69,7 @@ export interface MailItem {
   mail_id: number
   subject: string
   from_id: number | null
+  from_name: string | null
   timestamp: string | null
   is_read: boolean
 }
@@ -82,6 +83,7 @@ export interface Notification {
   type: string
   sender_id: number | null
   sender_type: string | null
+  sender_name: string | null
   timestamp: string | null
   is_read: boolean
   text: string

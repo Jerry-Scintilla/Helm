@@ -10,6 +10,7 @@ from app.models.esi_data import (
     CharacterWalletJournal, CharacterWalletTransaction, CharacterSkillQueue, CharacterNotification,
 )
 from app.models.user import User
+from app.services.esi_names import enrich_entity_names
 from app.services.sde import enrich_type_names, enrich_type_names_all_locales
 
 router = APIRouter(prefix="/api/v1/characters", tags=["characters"])
@@ -132,6 +133,11 @@ async def get_assets(
         for a in assets
     ]
     await enrich_type_names_all_locales(asset_rows, id_field="type_id", name_field="type_name", db=db)
+    # Resolve location names for solar_system and station entries via ESI
+    resolvable = [r for r in asset_rows if r["location_type"] in ("solar_system", "station")]
+    await enrich_entity_names(resolvable, id_field="location_id", name_field="location_name")
+    for row in asset_rows:
+        row.setdefault("location_name", None)
     return asset_rows
 
 
@@ -149,7 +155,7 @@ async def get_mail(
         .limit(50)
     )
     mails = result.scalars().all()
-    return [
+    mail_rows = [
         {
             "mail_id": m.mail_id,
             "subject": m.subject,
@@ -159,6 +165,8 @@ async def get_mail(
         }
         for m in mails
     ]
+    await enrich_entity_names(mail_rows, id_field="from_id", name_field="from_name")
+    return mail_rows
 
 
 @router.get("/{character_id}/mail/{mail_id}")
@@ -178,10 +186,13 @@ async def get_mail_detail(
     mail = result.scalar_one_or_none()
     if mail is None:
         raise HTTPException(status_code=404, detail="Mail not found")
+    detail_rows = [{"from_id": mail.from_id}]
+    await enrich_entity_names(detail_rows, id_field="from_id", name_field="from_name")
     return {
         "mail_id": mail.mail_id,
         "subject": mail.subject,
         "from_id": mail.from_id,
+        "from_name": detail_rows[0].get("from_name"),
         "timestamp": mail.timestamp,
         "is_read": mail.is_read,
         "body": mail.body,
@@ -302,7 +313,7 @@ async def get_notifications(
         stmt = stmt.where(CharacterNotification.is_read == False)
     result = await db.execute(stmt)
     notifications = result.scalars().all()
-    return [
+    notif_rows = [
         {
             "notification_id": n.notification_id,
             "type": n.type,
@@ -314,3 +325,12 @@ async def get_notifications(
         }
         for n in notifications
     ]
+    # Skip sender_type="other" (system notifications) — no ESI name available
+    await enrich_entity_names(
+        notif_rows,
+        id_field="sender_id",
+        name_field="sender_name",
+        skip_types={"other"},
+        type_field="sender_type",
+    )
+    return notif_rows

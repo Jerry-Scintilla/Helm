@@ -49,7 +49,7 @@ function fmtDate(dt: string | null) {
         >
           <div class="mail-subject">{{ mail.subject || '(无标题)' }}</div>
           <div class="mail-meta">
-            <span>From {{ mail.from_id ?? '?' }}</span>
+            <span>From {{ mail.from_name ?? mail.from_id ?? '?' }}</span>
             <span>{{ fmtDate(mail.timestamp) }}</span>
           </div>
         </div>
@@ -62,7 +62,7 @@ function fmtDate(dt: string | null) {
         <div v-else-if="charStore.selectedMail" class="mail-body-wrap">
           <h2 class="detail-subject">{{ charStore.selectedMail.subject || '(无标题)' }}</h2>
           <div class="detail-meta">
-            <span>发件人 {{ charStore.selectedMail.from_id ?? '?' }}</span>
+            <span>发件人 {{ charStore.selectedMail.from_name ?? charStore.selectedMail.from_id ?? '?' }}</span>
             <span>{{ fmtDate(charStore.selectedMail.timestamp) }}</span>
           </div>
           <div class="detail-body">{{ charStore.selectedMail.body }}</div>

@@ -10,6 +10,7 @@ from app.models.esi_data import (
     CharacterWalletJournal, CharacterWalletTransaction, CharacterSkillQueue, CharacterNotification,
 )
 from app.models.user import User
+from app.services.sde import enrich_type_names, enrich_type_names_all_locales
 
 router = APIRouter(prefix="/api/v1/characters", tags=["characters"])
 
@@ -93,16 +94,18 @@ async def get_skills(
         select(CharacterSkill).where(CharacterSkill.character_id == char.id)
     )
     skills = result.scalars().all()
+    skill_rows = [
+        {
+            "skill_id": s.skill_id,
+            "trained_skill_level": s.trained_skill_level,
+            "skillpoints_in_skill": s.skillpoints_in_skill,
+        }
+        for s in skills
+    ]
+    await enrich_type_names_all_locales(skill_rows, id_field="skill_id", name_field="skill_name", db=db)
     return {
         "total_sp": sum(s.skillpoints_in_skill for s in skills),
-        "skills": [
-            {
-                "skill_id": s.skill_id,
-                "trained_skill_level": s.trained_skill_level,
-                "skillpoints_in_skill": s.skillpoints_in_skill,
-            }
-            for s in skills
-        ],
+        "skills": skill_rows,
         "updated_at": skills[0].updated_at if skills else None,
     }
 
@@ -118,7 +121,7 @@ async def get_assets(
         select(CharacterAsset).where(CharacterAsset.character_id == char.id)
     )
     assets = result.scalars().all()
-    return [
+    asset_rows = [
         {
             "item_id": a.item_id,
             "type_id": a.type_id,
@@ -128,6 +131,8 @@ async def get_assets(
         }
         for a in assets
     ]
+    await enrich_type_names_all_locales(asset_rows, id_field="type_id", name_field="type_name", db=db)
+    return asset_rows
 
 
 @router.get("/{character_id}/mail")
@@ -233,7 +238,7 @@ async def get_wallet_transactions(
         .limit(per_page)
     )
     entries = result.scalars().all()
-    return [
+    tx_rows = [
         {
             "transaction_id": e.transaction_id,
             "date": e.date,
@@ -246,6 +251,8 @@ async def get_wallet_transactions(
         }
         for e in entries
     ]
+    await enrich_type_names_all_locales(tx_rows, id_field="type_id", name_field="type_name", db=db)
+    return tx_rows
 
 
 @router.get("/{character_id}/skillqueue")
@@ -261,7 +268,7 @@ async def get_skill_queue(
         .order_by(CharacterSkillQueue.queue_position)
     )
     queue = result.scalars().all()
-    return [
+    queue_rows = [
         {
             "queue_position": q.queue_position,
             "skill_id": q.skill_id,
@@ -273,6 +280,8 @@ async def get_skill_queue(
         }
         for q in queue
     ]
+    await enrich_type_names_all_locales(queue_rows, id_field="skill_id", name_field="skill_name", db=db)
+    return queue_rows
 
 
 @router.get("/{character_id}/notifications")

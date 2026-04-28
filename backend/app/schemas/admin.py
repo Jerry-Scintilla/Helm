@@ -52,3 +52,36 @@ class SystemStatsResponse(BaseModel):
     total_alliances: int
     total_buckets: int
     total_bucket_tokens: int
+
+
+class SDEImportRequest(BaseModel):
+    url: str | None = None
+
+
+class SDEImportResponse(BaseModel):
+    task_id: str
+    status: str
+    source: str  # "url" | "upload"
+
+
+class SDEImportStatusResponse(BaseModel):
+    task_id: str
+    status: str
+    result: dict | None = None
+    error: str | None = None
+
+
+class SDEStatusResponse(BaseModel):
+    status: str  # idle | running | success | failed
+    version: str | None = None
+    release_date: str | None = None
+    row_count: int | None = None
+    last_import_at: str | None = None
+    last_error: str | None = None
+    source_url: str | None = None
+
+
+class SDEUploadResponse(BaseModel):
+    task_id: str
+    status: str
+    filename: str

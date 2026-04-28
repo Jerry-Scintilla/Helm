@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import api from '@/api'
+import type { SdeName } from '@/utils/sde'
 
 export interface CharacterInfo {
   character_id: number
@@ -16,9 +17,16 @@ export interface WalletInfo {
   updated_at: string | null
 }
 
+export interface SkillEntry {
+  skill_id: number
+  trained_skill_level: number
+  skillpoints_in_skill: number
+  skill_name?: SdeName | null
+}
+
 export interface SkillsInfo {
   total_sp: number
-  skills: Array<{ skill_id: number; trained_skill_level: number; skillpoints_in_skill: number }>
+  skills: SkillEntry[]
   updated_at: string | null
 }
 
@@ -38,6 +46,7 @@ export interface WalletTransaction {
   transaction_id: number
   date: string | null
   type_id: number
+  type_name?: SdeName | null
   location_id: number
   unit_price: number
   quantity: number
@@ -48,6 +57,7 @@ export interface WalletTransaction {
 export interface SkillQueueEntry {
   queue_position: number
   skill_id: number
+  skill_name?: SdeName | null
   finished_level: number
   start_date: string | null
   finish_date: string | null

@@ -96,6 +96,7 @@ const router = createRouter({
             { path: 'users', name: 'admin-users', component: () => import('@/views/admin/UsersView.vue') },
             { path: 'roles', name: 'admin-roles', component: () => import('@/views/admin/RolesView.vue') },
             { path: 'permissions', name: 'admin-permissions', component: () => import('@/views/admin/PermissionsView.vue') },
+            { path: 'sde', name: 'admin-sde', component: () => import('@/views/admin/SdeView.vue') },
             { path: 'buckets', name: 'admin-buckets', component: () => import('@/views/admin/BucketsView.vue') },
             { path: 'tokens', name: 'admin-tokens', component: () => import('@/views/admin/ApiTokensView.vue') },
           ],

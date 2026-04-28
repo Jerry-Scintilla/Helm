@@ -2,6 +2,7 @@
 import { onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCharacterStore } from '@/stores/character'
+import { resolveSdeName } from '@/utils/sde'
 
 const route = useRoute()
 const charStore = useCharacterStore()
@@ -58,7 +59,7 @@ function queueProgress(entry: { level_start_sp: number | null; level_end_sp: num
         >
           <div class="queue-main">
             <span class="queue-pos">{{ entry.queue_position + 1 }}</span>
-            <span class="queue-skill">Skill {{ entry.skill_id }}</span>
+            <span class="queue-skill">{{ resolveSdeName(entry.skill_name, `Skill ${entry.skill_id}`) }}</span>
             <span class="queue-level">Lv {{ entry.finished_level }}</span>
             <span class="queue-finish">{{ fmtDate(entry.finish_date) }}</span>
           </div>
@@ -86,7 +87,7 @@ function queueProgress(entry: { level_start_sp: number | null; level_end_sp: num
           :key="skill.skill_id"
           class="skill-row"
         >
-          <span class="skill-id">{{ skill.skill_id }}</span>
+          <span class="skill-name">{{ resolveSdeName(skill.skill_name, `#${skill.skill_id}`) }}</span>
           <span class="skill-dots">{{ levelDots(skill.trained_skill_level) }}</span>
           <span class="skill-sp">{{ fmtSp(skill.skillpoints_in_skill) }} SP</span>
         </div>
@@ -145,7 +146,7 @@ function queueProgress(entry: { level_start_sp: number | null; level_end_sp: num
   border-radius: 6px;
   border: 1px solid #30302e;
 }
-.skill-id { font-size: 0.82rem; color: #87867f; min-width: 48px; }
+.skill-name { font-size: 0.82rem; color: #faf9f5; flex: 1; }
 .skill-dots { font-size: 0.7rem; color: #c96442; letter-spacing: 1px; flex: 1; }
 .skill-sp { font-size: 0.8rem; color: #87867f; white-space: nowrap; }
 </style>

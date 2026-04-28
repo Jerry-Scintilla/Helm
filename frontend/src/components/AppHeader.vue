@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/api'
@@ -36,8 +36,6 @@ function handleUserMenu(key: string) {
   if (key === 'logout') handleLogout()
   else if (key === 'admin') router.push('/admin/system')
 }
-
-import { computed } from 'vue'
 </script>
 
 <template>

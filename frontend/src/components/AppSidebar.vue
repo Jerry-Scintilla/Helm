@@ -81,6 +81,7 @@ const menuOptions = computed<MenuOption[]>(() => {
         { label: '系统', key: '/admin/system', icon: icon('·') },
         { label: '用户', key: '/admin/users', icon: icon('·') },
         { label: '角色权限', key: '/admin/roles', icon: icon('·') },
+        { label: 'SDE', key: '/admin/sde', icon: icon('·') },
         { label: 'Buckets', key: '/admin/buckets', icon: icon('·') },
         { label: 'API Token', key: '/admin/tokens', icon: icon('·') },
       ],

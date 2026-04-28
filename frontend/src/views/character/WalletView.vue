@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useCharacterStore } from '@/stores/character'
 import type { DataTableColumns } from 'naive-ui'
 import type { WalletJournalEntry, WalletTransaction } from '@/stores/character'
+import { resolveSdeName } from '@/utils/sde'
 
 const route = useRoute()
 const charStore = useCharacterStore()
@@ -52,7 +53,7 @@ const journalCols: DataTableColumns<WalletJournalEntry> = [
 
 const txCols: DataTableColumns<WalletTransaction> = [
   { title: '日期', key: 'date', width: 160, render: r => fmtDate(r.date) },
-  { title: 'Type ID', key: 'type_id', width: 90 },
+  { title: '物品', key: 'type_id', ellipsis: true, render: r => resolveSdeName(r.type_name, String(r.type_id)) },
   { title: '数量', key: 'quantity', width: 80, align: 'right' },
   { title: '单价', key: 'unit_price', width: 130, align: 'right', render: r => fmt(r.unit_price) },
   {

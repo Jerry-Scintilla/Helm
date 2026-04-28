@@ -20,6 +20,7 @@ celery_app = Celery(
         "app.tasks.corporations.wallet",
         "app.tasks.corporations.assets",
         "app.tasks.alliances.info",
+        "app.tasks.sde.import_sde",
         "app.tasks.bucket.scheduler",
         "app.tasks.bucket.runner",
     ],
@@ -37,6 +38,7 @@ celery_app.conf.update(
         "app.tasks.alliances.*": {"queue": "corporations"},
         "app.tasks.bucket.*": {"queue": "bucket"},
         "app.tasks.high.*": {"queue": "high"},
+        "app.tasks.sde.*": {"queue": "high"},
     },
     beat_schedule={
         # Character tasks — hourly

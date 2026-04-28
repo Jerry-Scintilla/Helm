@@ -2,10 +2,13 @@
 import { onMounted, ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '@/api'
+import type { SdeName } from '@/utils/sde'
+import { resolveSdeName } from '@/utils/sde'
 
 interface Asset {
   item_id: number
   type_id: number
+  type_name?: SdeName | null
   location_id: number
   location_type: string
   quantity: number
@@ -62,7 +65,7 @@ async function load() {
           </template>
           <div class="asset-table">
             <div class="asset-row header-row">
-              <span>Type ID</span>
+              <span>物品</span>
               <span>数量</span>
               <span>位置类型</span>
             </div>
@@ -71,7 +74,7 @@ async function load() {
               :key="item.item_id"
               class="asset-row"
             >
-              <span class="type-id">{{ item.type_id }}</span>
+              <span class="type-name">{{ resolveSdeName(item.type_name, String(item.type_id)) }}</span>
               <span>{{ item.is_singleton ? '1 (singleton)' : item.quantity }}</span>
               <span class="loc-type">{{ item.location_type }}</span>
             </div>
@@ -107,7 +110,7 @@ async function load() {
   border-bottom: 1px solid rgba(255,255,255,0.04);
 }
 .header-row { color: #5e5d59; font-size: 0.78rem; }
-.type-id { color: #faf9f5; }
+.type-name { color: #faf9f5; }
 .loc-type { color: #87867f; }
 
 .pagination { display: flex; align-items: center; gap: 12px; margin-top: 16px; }

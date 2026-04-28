@@ -26,5 +26,9 @@ class Settings(BaseSettings):
     bucket_max_count: int = 30
     bucket_min_refresh_interval: int = 3300  # 55 minutes in seconds
 
+    sde_default_jsonl_url: str = "https://developers.eveonline.com/static-data/eve-online-static-data-latest-jsonl.zip"
+    sde_upload_dir: str = "data/sde/uploads"
+    sde_import_timeout: int = 600  # 10 minutes
+
 
 settings = Settings()

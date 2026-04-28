@@ -4,6 +4,8 @@ import { useRoute } from 'vue-router'
 import { useCorporationStore } from '@/stores/corporation'
 import type { DataTableColumns } from 'naive-ui'
 import type { CorporationMember } from '@/stores/corporation'
+import { resolveSdeName } from '@/utils/sde'
+import type { SdeName } from '@/utils/sde'
 
 const route = useRoute()
 const corpStore = useCorporationStore()
@@ -35,7 +37,17 @@ const cols: DataTableColumns<CorporationMember> = [
   { title: '加入日期', key: 'start_date', width: 120, render: r => fmtDate(r.start_date) },
   { title: '最后登录', key: 'logon_date', width: 160, render: r => fmtDate(r.logon_date) },
   { title: '最后登出', key: 'logoff_date', width: 160, render: r => fmtDate(r.logoff_date) },
-  { title: '舰船 Type', key: 'ship_type_id', width: 100, render: r => r.ship_type_id ?? '—' },
+  {
+    title: '舰船',
+    key: 'ship_type_id',
+    ellipsis: true,
+    render: r => {
+      if (!r.ship_type_id) return '—'
+      if (r.ship_type_name && typeof r.ship_type_name === 'object')
+        return resolveSdeName(r.ship_type_name as SdeName, String(r.ship_type_id))
+      return (r.ship_type_name as string | null) ?? String(r.ship_type_id)
+    },
+  },
 ]
 </script>
 

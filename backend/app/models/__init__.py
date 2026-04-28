@@ -7,7 +7,7 @@ from app.models.esi_data import (
 )
 from app.models.corporation import Corporation, CorporationMember, CorporationWallet, CorporationWalletJournal, CorporationAsset
 from app.models.alliance import Alliance, AllianceCorporation
-from app.models.sde import TypeInfo
+from app.models.sde import SDEType, SDEGroup, SDECategory
 from app.models.bucket import Bucket, BucketToken
 from app.models.api_token import APIToken
 
@@ -19,7 +19,7 @@ __all__ = [
     "CharacterWalletJournal", "CharacterWalletTransaction", "CharacterSkillQueue", "CharacterNotification",
     "Corporation", "CorporationMember", "CorporationWallet", "CorporationWalletJournal", "CorporationAsset",
     "Alliance", "AllianceCorporation",
-    "TypeInfo",
+    "SDEType", "SDEGroup", "SDECategory",
     "Bucket", "BucketToken",
     "APIToken",
 ]

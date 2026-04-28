@@ -59,3 +59,6 @@ lerna-debug.log*
 # 文档
 Markdown/
 CLAUDE.md
+
+# SDE uploads
+data/sde/uploads/

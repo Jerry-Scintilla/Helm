@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useCorporationStore } from '@/stores/corporation'
 import type { DataTableColumns } from 'naive-ui'
 import type { CorporationAsset } from '@/stores/corporation'
+import { resolveSdeName } from '@/utils/sde'
 
 const route = useRoute()
 const corpStore = useCorporationStore()
@@ -23,7 +24,7 @@ async function load() {
 }
 
 const cols: DataTableColumns<CorporationAsset> = [
-  { title: 'Type ID', key: 'type_id', width: 100 },
+  { title: '物品', key: 'type_id', ellipsis: true, render: r => resolveSdeName(r.type_name, String(r.type_id)) },
   { title: 'Location ID', key: 'location_id', width: 120 },
   { title: '位置类型', key: 'location_type', width: 120 },
   { title: '数量', key: 'quantity', width: 80, align: 'right' },

@@ -1,11 +1,15 @@
 import json
+from datetime import UTC, datetime
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Depends, HTTPException
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, HTTPException, status, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.permissions import get_current_user, require_permission
 from app.core.redis import get_pool
@@ -15,6 +19,8 @@ from app.models.character import Character
 from app.models.corporation import Corporation
 from app.models.rbac import Permission, Role, RolePermission, UserRole
 from app.models.user import User
+from app.schemas.admin import SDEImportRequest, SDEStatusResponse, SDEUploadResponse
+from app.tasks.celery_app import celery_app
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -329,3 +335,94 @@ async def system_stats(
         "total_buckets": buckets,
         "total_bucket_tokens": bucket_tokens,
     }
+
+
+# ── SDE ───────────────────────────────────────────────────────────────────────
+
+@router.post("/sde/import", status_code=status.HTTP_202_ACCEPTED)
+async def trigger_sde_import(
+    body: SDEImportRequest | None = None,
+    _: User = Depends(require_permission("global.superuser")),
+):
+    url = (body.url or settings.sde_default_jsonl_url) if body else settings.sde_default_jsonl_url
+    task = celery_app.send_task("app.tasks.sde.import_sde", args=[url], kwargs={}, queue="high")
+    return {"task_id": task.id, "status": "dispatched", "source": "url"}
+
+
+@router.post("/sde/upload", status_code=status.HTTP_202_ACCEPTED)
+async def trigger_sde_upload(
+    file: UploadFile = File(...),
+    _: User = Depends(require_permission("global.superuser")),
+):
+    """Accept a user-uploaded eve-online-static-data-latest-jsonl.zip file."""
+    import uuid
+
+    upload_dir = Path(settings.sde_upload_dir)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    suffix = Path(file.filename).suffix.lower() if file.filename else ".zip"
+    if suffix != ".zip":
+        raise HTTPException(status_code=400, detail="Only .zip files are accepted")
+
+    filename = f"{uuid.uuid4().hex}{suffix}"
+    file_path = upload_dir / filename
+
+    content = await file.read()
+    if len(content) > 500 * 1024 * 1024:  # 500 MB limit
+        raise HTTPException(status_code=413, detail="File too large (max 500 MB)")
+
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    task = celery_app.send_task(
+        "app.tasks.sde.import_sde",
+        kwargs={"uploaded_file_path": str(file_path)},
+        queue="high",
+    )
+    return {"task_id": task.id, "status": "dispatched", "filename": file.filename}
+
+
+@router.get("/sde/import/{task_id}")
+async def get_sde_import_status(
+    task_id: str,
+    _: User = Depends(require_permission("global.superuser")),
+):
+    result = celery_app.AsyncResult(task_id)
+    if result.failed():
+        return {"task_id": task_id, "status": "failure", "result": None, "error": str(result.result)}
+    if result.successful():
+        return {"task_id": task_id, "status": "success", "result": result.result, "error": None}
+    return {"task_id": task_id, "status": result.state.lower(), "result": None, "error": None}
+
+
+@router.get("/sde/status")
+async def get_sde_status(
+    _: User = Depends(require_permission("global.superuser")),
+):
+    """Return current SDE import status and metadata stored in Redis."""
+    r = aioredis.Redis(connection_pool=get_pool())
+    try:
+        status_val = await r.get("helm:sde:status") or "idle"
+        version = await r.get("helm:sde:version")
+        release_date = await r.get("helm:sde:release_date")
+        row_count_str = await r.get("helm:sde:row_count")
+        last_import_at_str = await r.get("helm:sde:last_import_at")
+        last_error = await r.get("helm:sde:last_error")
+        source_url = await r.get("helm:sde:source_url")
+
+        last_import_at = None
+        if last_import_at_str:
+            ts = int(last_import_at_str)
+            last_import_at = datetime.fromtimestamp(ts, tz=UTC).isoformat()
+
+        return {
+            "status": status_val,
+            "version": version,
+            "release_date": release_date,
+            "row_count": int(row_count_str) if row_count_str else None,
+            "last_import_at": last_import_at,
+            "last_error": last_error or None,
+            "source_url": source_url or None,
+        }
+    finally:
+        await r.aclose()

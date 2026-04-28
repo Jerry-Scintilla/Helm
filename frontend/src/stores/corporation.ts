@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import api from '@/api'
+import type { SdeName } from '@/utils/sde'
 
 export interface CorporationInfo {
   corporation_id: number
@@ -16,7 +17,7 @@ export interface CorporationInfo {
 export interface CorporationMember {
   character_id: number
   ship_type_id: number | null
-  ship_type_name: string | null
+  ship_type_name: SdeName | string | null
   start_date: string | null
   logon_date: string | null
   logoff_date: string | null
@@ -43,6 +44,7 @@ export interface CorporationJournalEntry {
 export interface CorporationAsset {
   item_id: number
   type_id: number
+  type_name?: SdeName | null
   location_id: number
   location_type: string
   quantity: number

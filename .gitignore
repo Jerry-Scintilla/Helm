@@ -28,6 +28,7 @@ env/
 !.env.example
 .env/
 .vscode/
+backend/data/
 
 # Vite/Node
 node_modules/

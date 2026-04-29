@@ -21,7 +21,7 @@ export interface PluginInfo {
   status: 'installed' | 'enabled' | 'disabled' | 'error' | 'uninstalled'
   error_message: string | null
   meta: PluginMeta
-  frontend_bundle_url: string | null
+  frontend_url: string | null
   installed_at: string
   updated_at: string
 }
@@ -36,6 +36,16 @@ export const usePluginStore = defineStore('plugin', () => {
   async function fetchPlugins() {
     const res = await api.get<PluginInfo[]>('/api/v1/admin/plugins/')
     plugins.value = res.data
+  }
+
+  async function fetchEnabledPlugins() {
+    const res = await api.get<PluginInfo[]>('/api/v1/plugins/')
+    // Merge: keep admin-fetched entries, supplement with public ones not yet loaded
+    const existing = new Map(plugins.value.map(p => [p.name, p]))
+    for (const p of res.data) {
+      if (!existing.has(p.name)) existing.set(p.name, p)
+    }
+    plugins.value = Array.from(existing.values())
   }
 
   async function installByName(packageName: string) {
@@ -120,6 +130,7 @@ export const usePluginStore = defineStore('plugin', () => {
     installLog,
     installing,
     fetchPlugins,
+    fetchEnabledPlugins,
     installByName,
     installByWhl,
     enablePlugin,

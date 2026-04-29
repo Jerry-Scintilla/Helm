@@ -15,5 +15,5 @@ export const { message, notification, dialog } = createDiscreteApi(
 const app = createApp(App)
 app.use(createPinia())
 app.use(router)
-app.use(naive)   // 全局注册所有 Naive UI 组件
+app.use(naive)
 app.mount('#app')

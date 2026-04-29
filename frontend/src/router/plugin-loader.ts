@@ -1,32 +1,57 @@
 /**
- * Plugin dynamic route loader.
- * Phase 3: loads plugin metadata and registers routes for plugins that have
- * a frontend_bundle_url. Actual bundle import() is the Phase 4 protocol.
+ * iframe-based plugin route loader.
+ *
+ * For each enabled plugin that declares a frontend_url, registers a Vue Router
+ * catch-all route pointing to PluginIframeView. The plugin's own SPA handles
+ * internal navigation inside the iframe; Helm only manages the outer shell.
  */
 import type { Router } from 'vue-router'
 import api from '@/api'
 import type { PluginInfo } from '@/stores/plugin'
 
-let _sseCleanup: (() => void) | null = null
+// ── Route management ──────────────────────────────────────────────────────────
+
+const _registeredPlugins = new Set<string>()
+
+function removePluginRoutes(router: Router, pluginName: string): void {
+  for (const route of router.getRoutes()) {
+    if (route.meta?.pluginName === pluginName) {
+      try {
+        router.removeRoute(route.name!)
+      } catch {
+        /* already removed */
+      }
+    }
+  }
+  _registeredPlugins.delete(pluginName)
+}
 
 export async function loadPluginRoutes(router: Router): Promise<void> {
   try {
     const res = await api.get<PluginInfo[]>('/api/v1/plugins/')
+
     for (const plugin of res.data) {
-      if (!plugin.frontend_bundle_url) continue
-      try {
-        // Phase 4: dynamically import the plugin's frontend bundle
-        // const module = await import(/* @vite-ignore */ plugin.frontend_bundle_url)
-        // if (module.routes) {
-        //   for (const route of module.routes) router.addRoute(route)
-        // }
-        console.info(`[PluginLoader] Plugin "${plugin.name}" has bundle at ${plugin.frontend_bundle_url} (Phase 4 import)`)
-      } catch (err) {
-        console.warn(`[PluginLoader] Failed to load bundle for plugin "${plugin.name}":`, err)
-      }
+      removePluginRoutes(router, plugin.name)
+
+      if (!plugin.frontend_url) continue
+
+      router.addRoute('main', {
+        // Catch-all so the plugin's internal SPA routes don't cause Helm 404s
+        path: `plugins/${plugin.name}/:pathMatch(.*)*`,
+        name: plugin.name,
+        component: () => import('@/views/plugin/PluginIframeView.vue'),
+        meta: {
+          pluginName: plugin.name,
+          frontendUrl: plugin.frontend_url,
+          iframePlugin: true,
+        },
+      })
+
+      _registeredPlugins.add(plugin.name)
+      console.info(`[PluginLoader] Registered iframe route for "${plugin.name}"`)
     }
   } catch (err) {
-    console.warn('[PluginLoader] Failed to fetch plugin manifest:', err)
+    console.warn('[PluginLoader] Failed to load plugin manifest:', err)
   }
 }
 
@@ -40,15 +65,13 @@ export function setupPluginSSEReload(router: Router): () => void {
       const ev = JSON.parse(e.data) as { type: string; name?: string }
       if (ev.type === 'plugin.installed' || ev.type === 'plugin.enabled') {
         await loadPluginRoutes(router)
+      } else if (ev.type === 'plugin.disabled' || ev.type === 'plugin.uninstalled') {
+        if (ev.name) removePluginRoutes(router, ev.name)
       }
-      // plugin.uninstalled / plugin.disabled: routes remain registered until page reload
-      // (router.removeRoute requires knowing the route name; Phase 4 will track this)
     } catch {
-      // ignore
+      /* ignore malformed events */
     }
   }
 
-  const cleanup = () => es.close()
-  _sseCleanup = cleanup
-  return cleanup
+  return () => es.close()
 }

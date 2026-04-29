@@ -18,7 +18,7 @@ class PluginInfo(BaseModel):
     status: str
     error_message: str | None
     meta: dict
-    frontend_bundle_url: str | None
+    frontend_url: str | None = None
     installed_at: datetime
     updated_at: datetime
 

@@ -1,7 +1,15 @@
 <script setup lang="ts">
-import { RouterView } from 'vue-router'
+import { computed, onMounted } from 'vue'
+import { RouterView, useRoute } from 'vue-router'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
+import { usePluginStore } from '@/stores/plugin'
+
+const pluginStore = usePluginStore()
+onMounted(() => { pluginStore.fetchEnabledPlugins() })
+
+const route = useRoute()
+const isIframeRoute = computed(() => route.meta.iframePlugin === true)
 </script>
 
 <template>
@@ -13,7 +21,7 @@ import AppHeader from './AppHeader.vue'
           <slot name="header-title" />
         </template>
       </AppHeader>
-      <div class="shell-content">
+      <div class="shell-content" :class="{ 'shell-content--iframe': isIframeRoute }">
         <RouterView />
       </div>
     </div>
@@ -44,5 +52,10 @@ import AppHeader from './AppHeader.vue'
   padding: 24px 28px;
   scrollbar-width: thin;
   scrollbar-color: #30302e #141413;
+}
+
+.shell-content--iframe {
+  padding: 0;
+  overflow: hidden;
 }
 </style>

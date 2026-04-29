@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from 'axios'
+import { resetPluginRoutesFlag } from '@/router'
 
 export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref<string | null>(localStorage.getItem('access_token'))
@@ -49,6 +50,7 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('character_id')
     localStorage.removeItem('character_name')
     localStorage.removeItem('is_superuser')
+    resetPluginRoutesFlag()
   }
 
   function loginWithEve() {

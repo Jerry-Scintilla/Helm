@@ -1,13 +1,16 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.permissions import seed_permissions
 from app.routers import auth, characters, admin, corporations, alliances, api_tokens
 from app.routers.plugins import public_router as plugins_public_router, router as plugins_router
+from app.routers.plugin_ui import router as plugin_ui_router
 from app.plugins.loader import load_plugins
 from app.plugins.events import stop_listener
 
@@ -58,6 +61,11 @@ app.include_router(api_tokens.router)
 app.include_router(admin.router)
 app.include_router(plugins_public_router)
 app.include_router(plugins_router)
+app.include_router(plugin_ui_router, prefix="/plugin-ui")
+
+# Serve helm-sdk.js for plugin iframes: GET /plugin-sdk/helm-sdk.js
+_sdk_dir = Path(__file__).parent / "static"
+app.mount("/plugin-sdk", StaticFiles(directory=_sdk_dir), name="plugin-sdk")
 
 
 @app.get("/health")

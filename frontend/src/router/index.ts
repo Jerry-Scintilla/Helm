@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { usePluginStore } from '@/stores/plugin'
 import { loadPluginRoutes } from '@/router/plugin-loader'
 
 const router = createRouter({
@@ -21,6 +22,7 @@ const router = createRouter({
     {
       // Persistent shell — all authenticated views live inside here
       path: '/',
+      name: 'main',
       component: () => import('@/components/AppLayout.vue'),
       children: [
         {
@@ -108,18 +110,37 @@ const router = createRouter({
   ],
 })
 
-router.isReady().then(() => {
-  const auth = useAuthStore()
-  if (auth.isLoggedIn) loadPluginRoutes(router)
-})
+// Track whether plugin routes have been registered for the current session.
+// Must be reset to false on logout so re-login picks up fresh routes.
+let pluginRoutesLoaded = false
 
-router.beforeEach((to) => {
+export function resetPluginRoutesFlag() {
+  pluginRoutesLoaded = false
+}
+
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
+
   if (!to.meta.public && !auth.isLoggedIn) {
     return { name: 'login' }
   }
   if (to.meta.requiresSuperuser && !auth.isSuperuser) {
     return { name: 'dashboard' }
+  }
+
+  // Register plugin routes once after the user is authenticated.
+  // This runs inside beforeEach so routes exist before the initial navigation
+  // resolves — fixing hard-refresh on /plugins/* paths.
+  if (auth.isLoggedIn && !pluginRoutesLoaded) {
+    pluginRoutesLoaded = true
+    await loadPluginRoutes(router)
+    usePluginStore().fetchEnabledPlugins()
+
+    // If the target is a plugin path, re-trigger navigation now that the
+    // routes are registered (otherwise the initial guard run would 404).
+    if (to.path.startsWith('/plugins/')) {
+      return to.fullPath
+    }
   }
 })
 

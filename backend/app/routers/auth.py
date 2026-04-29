@@ -10,12 +10,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import get_db, AsyncSessionLocal
 from app.core.permissions import assign_player_role
 from app.core.redis import get_pool
 from app.core.security import create_access_token, create_refresh_token, hash_token
 from app.esi import oauth as eve_oauth
 from app.models.character import Character
+from app.models.plugin import Plugin
 from app.models.user import RefreshToken, User
 from app.tasks.celery_app import celery_app
 
@@ -48,7 +49,18 @@ def _redis() -> aioredis.Redis:
 async def eve_login():
     """Redirect to EVE SSO login page."""
     state = secrets.token_urlsafe(16)
-    login_url, verifier = eve_oauth.get_login_url(state)
+
+    # Collect ESI scopes declared by all enabled plugins
+    plugin_scopes: list[str] = []
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(Plugin).where(Plugin.is_enabled == True)
+        )
+        for plugin in result.scalars().all():
+            scopes = (plugin.meta or {}).get("esi_scopes", [])
+            plugin_scopes.extend(scopes)
+
+    login_url, verifier = eve_oauth.get_login_url(state, extra_scopes=plugin_scopes or None)
     async with _redis() as r:
         await r.set(f"helm:oauth:state:{state}", verifier, ex=_OAUTH_STATE_TTL)
     return RedirectResponse(login_url)
@@ -94,7 +106,18 @@ async def eve_callback(
     # Upsert Character
     result = await db.execute(select(Character).where(Character.character_id == character_id))
     character = result.scalar_one_or_none()
-    scopes = token_data.get("scope", "")
+
+    # RFC 6749 §5.1 allows servers to omit `scope` from token response when
+    # it matches the request, so prefer the JWT `scp` claim (always present,
+    # cryptographically signed) over the token response body.
+    jwt_scopes = char_info.get("scopes", [])
+    if isinstance(jwt_scopes, str):
+        jwt_scopes = jwt_scopes.split()
+    scopes = " ".join(jwt_scopes) if jwt_scopes else token_data.get("scope", "")
+    expires_at = (
+        datetime.now(UTC) + timedelta(seconds=token_data["expires_in"])
+        if "expires_in" in token_data else None
+    )
     if character is None:
         character = Character(
             character_id=character_id,
@@ -102,6 +125,7 @@ async def eve_callback(
             character_name=character_name,
             access_token=token_data["access_token"],
             refresh_token=token_data["refresh_token"],
+            token_expires_at=expires_at,
             scopes=scopes,
         )
         db.add(character)
@@ -109,6 +133,8 @@ async def eve_callback(
         character.access_token = token_data["access_token"]
         character.refresh_token = token_data["refresh_token"]
         character.scopes = scopes
+        if expires_at is not None:
+            character.token_expires_at = expires_at
 
     if is_new_user:
         await assign_player_role(user.id, db)

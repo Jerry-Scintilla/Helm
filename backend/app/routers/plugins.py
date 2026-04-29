@@ -15,9 +15,27 @@ from app.core.security import decode_access_token
 from app.models.plugin import Plugin
 from app.models.user import User
 from app.plugins import events
+from app.plugins.base import HelmPlugin
 from app.plugins.manager import disable_plugin, enable_plugin, install_plugin, uninstall_plugin
 from app.plugins.registry import extension_registry, registry
 from app.schemas.plugin import InstallRequest, InstallResponse, PluginInfo, PluginStatusResponse
+
+
+def _compute_frontend_url(plugin: HelmPlugin, name: str) -> str | None:
+    """Compute the iframe src URL for a plugin's frontend.
+
+    In development, returns the plugin's dev server URL if declared.
+    Otherwise, returns the /plugin-ui/{name}/index.html path when a
+    compiled static dir exists.
+    """
+    if settings.app_env == "development":
+        dev_url = plugin.get_frontend_dev_url()
+        if dev_url:
+            return dev_url
+    static_dir = plugin.get_static_dir()
+    if static_dir and (static_dir / "index.html").exists():
+        return f"/plugin-ui/{name}/index.html"
+    return None
 
 # Admin-only router (requires global.plugin_manage)
 router = APIRouter(prefix="/api/v1/admin/plugins", tags=["plugins-admin"])
@@ -76,7 +94,15 @@ async def list_plugins(
     _: User = Depends(require_permission("global.plugin_manage")),
 ):
     result = await db.execute(select(Plugin).order_by(Plugin.installed_at))
-    return result.scalars().all()
+    plugins = result.scalars().all()
+    infos = []
+    for p in plugins:
+        info = PluginInfo.model_validate(p)
+        instance = registry.get(p.name)
+        if instance:
+            info = info.model_copy(update={"frontend_url": _compute_frontend_url(instance, p.name)})
+        infos.append(info)
+    return infos
 
 
 @router.get("/events")
@@ -176,7 +202,7 @@ async def plugin_status(
     )
 
 
-# ── Public endpoint ───────────────────────────────────────────────────────────
+# ── Public endpoints ──────────────────────────────────────────────────────────
 
 @public_router.get("/", response_model=list[PluginInfo])
 async def list_enabled_plugins(db: AsyncSession = Depends(get_db)):
@@ -184,4 +210,12 @@ async def list_enabled_plugins(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Plugin).where(Plugin.is_enabled == True, Plugin.status == "enabled")
     )
-    return result.scalars().all()
+    plugins = result.scalars().all()
+    infos = []
+    for p in plugins:
+        info = PluginInfo.model_validate(p)
+        instance = registry.get(p.name)
+        if instance:
+            info = info.model_copy(update={"frontend_url": _compute_frontend_url(instance, p.name)})
+        infos.append(info)
+    return infos

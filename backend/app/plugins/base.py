@@ -1,10 +1,13 @@
 from abc import ABC
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from fastapi import APIRouter
 
+
+# ── RBAC / Sidebar / Widget helpers ──────────────────────────────────────────
 
 @dataclass
 class PermissionDef:
@@ -22,17 +25,134 @@ class SidebarItem:
 
 
 @dataclass
-class WidgetDef:
-    component: str
-    title: str
-    order: int = 100
-
-
-@dataclass
 class PluginContext:
     db_session_factory: Any = None
     esi_client: Any = None
 
+
+# ── UI Schema — schema-driven frontend (no JS bundle required) ────────────────
+#
+# Plugins declare their UI structure in Python. The host SPA fetches this
+# schema at runtime and renders pages using generic built-in components.
+# Plugin authors only need to write Python; no Vite/Vue knowledge required.
+
+@dataclass
+class UIColumn:
+    """A column definition for UITable."""
+    key: str
+    label: str
+    type: Literal['text', 'number', 'date', 'badge', 'link'] = 'text'
+    sortable: bool = False
+    # badge type: maps field value → CSS color, e.g. {"approved": "#6abf69"}
+    badge_map: dict[str, str] | None = None
+
+
+@dataclass
+class UIAction:
+    """A button that either calls an API endpoint or navigates to a route.
+
+    For API actions  set endpoint + method (+ row_key for row-level actions).
+    For navigation   set navigate_to (route name, e.g. "fleet-action-create").
+    """
+    label: str
+    endpoint: str | None = None          # path under /api/v1/plugins/{name}/
+    navigate_to: str | None = None       # Vue Router route name
+    method: Literal['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] = 'POST'
+    variant: Literal['default', 'primary', 'danger'] = 'default'
+    confirm: str | None = None           # confirmation dialog text before executing
+    # Row-level: append row[row_key] to endpoint, e.g. endpoint="actions", row_key="id"
+    # → POST /api/v1/plugins/{name}/actions/{row.id}
+    row_key: str | None = None
+
+
+@dataclass
+class UIFilter:
+    """A filter control rendered above a UITable."""
+    key: str
+    label: str
+    type: Literal['text', 'select'] = 'text'
+    options: list[dict] | None = None    # select options: [{"label": "…", "value": "…"}]
+
+
+@dataclass
+class UITable:
+    """A data table section.
+
+    endpoint must return either:
+      - A list:  [{...}, ...]
+      - Paginated: {"items": [...], "total": N}
+    Filters and pagination are appended as query params automatically.
+    """
+    endpoint: str                                  # GET path under plugin prefix
+    columns: list[UIColumn] = field(default_factory=list)
+    page_actions: list[UIAction] = field(default_factory=list)   # top-right buttons
+    row_actions: list[UIAction] = field(default_factory=list)    # per-row buttons
+    filters: list[UIFilter] = field(default_factory=list)
+    page_size: int = 20
+
+
+@dataclass
+class UIFormField:
+    """A single input field in a UIForm."""
+    key: str
+    label: str
+    type: Literal['text', 'number', 'textarea', 'select', 'checkbox'] = 'text'
+    required: bool = False
+    options: list[dict] | None = None    # select options: [{"label": "…", "value": "…"}]
+    placeholder: str = ''
+    # Dynamic select: GET endpoint path (relative to plugin prefix) that returns
+    # [{"label": "…", "value": "…"}].  Takes precedence over `options` when set.
+    options_endpoint: str | None = None
+
+
+@dataclass
+class UIForm:
+    """A data-entry form section.
+
+    On submit the form data is sent to endpoint via method.
+    Plugin endpoint should return {"message": "..."} on success.
+    """
+    endpoint: str
+    method: Literal['POST', 'PUT', 'PATCH'] = 'POST'
+    fields: list[UIFormField] = field(default_factory=list)
+    submit_label: str = '提交'
+    # Route name to navigate to after successful submit (optional)
+    on_success_navigate: str | None = None
+
+
+@dataclass
+class UISection:
+    """A visual block on a page — either a table or a form."""
+    type: Literal['table', 'form']
+    title: str = ''
+    table: UITable | None = None
+    form: UIForm | None = None
+
+
+@dataclass
+class UIPage:
+    """A routable page within a plugin.
+
+    name  → appended to route name:  "{plugin-name}-{name}"
+    path  → appended to route path:  "/plugins/{plugin-name}/{path}"
+    """
+    name: str
+    path: str
+    title: str
+    sections: list[UISection] = field(default_factory=list)
+
+
+@dataclass
+class UISchema:
+    """The complete UI declaration for a plugin.
+
+    Return this from HelmPlugin.get_ui_schema() to give the plugin a frontend
+    without writing any JavaScript.
+    """
+    pages: list[UIPage] = field(default_factory=list)
+
+
+# ── HelmPlugin base class ─────────────────────────────────────────────────────
 
 class HelmPlugin(ABC):
     """Base class for all Helm plugins."""
@@ -63,10 +183,38 @@ class HelmPlugin(ABC):
     def get_sidebar_items(self) -> list[SidebarItem]:
         return []
 
-    def get_dashboard_widgets(self) -> list[WidgetDef]:
-        return []
+    # ── iframe-based frontend ─────────────────────────────────────────────────
 
-    # ── Event hooks (Phase 3 will wire these up) ─────────────────────────────
+    def get_static_dir(self) -> Path | None:
+        """Return the path to the plugin's compiled frontend files.
+
+        The directory must contain an index.html entry point.
+        Helm serves these files at /plugin-ui/{plugin-name}/ and renders
+        the plugin inside an iframe.
+
+        Example:
+            return Path(__file__).parent / "frontend" / "dist"
+        """
+        return None
+
+    def get_frontend_dev_url(self) -> str | None:
+        """Return a local dev-server URL used during development only.
+
+        When app_env is "development" and this returns a non-None value,
+        Helm points the plugin iframe at this URL instead of the static files.
+        This allows hot-reload during plugin development without rebuilding.
+
+        Example:
+            return "http://localhost:5174"
+        """
+        return None
+
+    # ── Schema-driven frontend (deprecated — kept for import compatibility) ────
+
+    def get_ui_schema(self) -> UISchema | None:
+        return None
+
+    # ── Event hooks ───────────────────────────────────────────────────────────
 
     def on_character_updated(self, character_id: int, ctx: PluginContext) -> None:
         pass

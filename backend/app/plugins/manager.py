@@ -5,6 +5,7 @@ The FastAPI app reference is set once by loader.py on startup via set_app().
 All public async functions are safe to call from BackgroundTasks (they create
 their own DB sessions via AsyncSessionLocal).
 """
+import asyncio
 import importlib
 import logging
 from datetime import UTC, datetime
@@ -131,63 +132,81 @@ async def install_plugin(package_name: str, whl_path: Path | None = None) -> dic
     Creates its own DB session (caller's session is already closed by then).
     """
     install_target = str(whl_path) if whl_path else package_name
+    logger.info("[install:%s] ── START install_target=%s", package_name, install_target)
 
     await publish_event("plugin.installing", {"package_name": package_name})
 
     # 1. pip install
-    async def _on_line(line: str) -> None:
-        await publish_event("plugin.install.log", {"line": line})
-
-    # BackgroundTask is sync-called, but install_plugin is async — wrap callback
+    # Capture loop here (async context). on_line runs inside asyncio.to_thread
+    # where get_running_loop() raises RuntimeError, so use run_coroutine_threadsafe.
+    _loop = asyncio.get_running_loop()
     log_lines: list[str] = []
 
     def on_line(line: str) -> None:
         log_lines.append(line)
-        # Fire-and-forget publish (we're inside an async context)
-        import asyncio
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(publish_event("plugin.install.log", {"line": line}))
-        except RuntimeError:
-            pass
+        logger.debug("[install:%s] pip | %s", package_name, line)
+        asyncio.run_coroutine_threadsafe(
+            publish_event("plugin.install.log", {"line": line}),
+            _loop,
+        )
 
+    logger.info("[install:%s] step 1/11 — pip install", package_name)
     ok, output = await pip_install(install_target, on_line=on_line)
     if not ok:
+        logger.error("[install:%s] pip install FAILED:\n%s", package_name, output)
         await publish_event("plugin.install.failed", {"package_name": package_name, "error": output})
         return {"status": "failed", "error": output}
+    logger.info("[install:%s] step 1/11 — pip install OK (%d lines)", package_name, len(log_lines))
 
     # 2. Discover entry point
+    logger.info("[install:%s] step 2/11 — discover entry point", package_name)
     result = discover_entry_point(package_name)
     if result is None:
         err = f"No helm.plugins entry point found for package '{package_name}'"
+        logger.error("[install:%s] %s", package_name, err)
         await publish_event("plugin.install.failed", {"package_name": package_name, "error": err})
         return {"status": "failed", "error": err}
     entry_point_str, plugin_dir = result
+    logger.info("[install:%s] step 2/11 — entry_point=%s  plugin_dir=%s", package_name, entry_point_str, plugin_dir)
 
     # 3. Load and validate plugin class
+    logger.info("[install:%s] step 3/11 — load & validate plugin class", package_name)
     try:
         plugin_class = load_plugin_class(entry_point_str)
         _validate_plugin(plugin_class)
     except Exception as exc:
         err = str(exc)
+        logger.error("[install:%s] load/validate FAILED: %s", package_name, err, exc_info=True)
         await publish_event("plugin.install.failed", {"package_name": package_name, "error": err})
         return {"status": "failed", "error": err}
+    logger.info(
+        "[install:%s] step 3/11 — class=%s  version=%s  sdk_req=%s",
+        package_name, plugin_class.__name__, plugin_class.version, plugin_class.helm_sdk_version,
+    )
 
     # 4. Run plugin-own alembic migrations
-    mig_ok, mig_out = await run_plugin_migrations(plugin_dir)
-    if not mig_ok:
-        logger.warning("Plugin migration warning for '%s': %s", package_name, mig_out)
+    logger.info("[install:%s] step 4/11 — alembic migrations", package_name)
+    mig_ok, mig_out = await run_plugin_migrations(
+        plugin_dir,
+        on_line=lambda line: logger.info("[install:%s] alembic | %s", package_name, line),
+    )
+    if mig_out.strip() == "no migrations":
+        logger.info("[install:%s] step 4/11 — no migrations directory, skipped", package_name)
+    elif mig_ok:
+        logger.info("[install:%s] step 4/11 — migrations OK:\n%s", package_name, mig_out)
+    else:
+        logger.warning("[install:%s] step 4/11 — migrations WARNING:\n%s", package_name, mig_out)
 
-    # 5. Detect frontend bundle
-    frontend_dist = plugin_dir / "frontend" / "dist"
+    # 5. (schema-driven frontend — no JS bundle needed)
+    logger.info("[install:%s] step 5/11 — skipped (schema-driven frontend, no bundle)", package_name)
     frontend_bundle_url: str | None = None
-    if frontend_dist.exists():
-        frontend_bundle_url = f"/static/plugins/{plugin_class.name}"
 
     # 6. Instantiate plugin
+    logger.info("[install:%s] step 6/11 — instantiate plugin", package_name)
     plugin_instance = plugin_class()
 
     # 7. Write/update DB record
+    logger.info("[install:%s] step 7/11 — write DB record", package_name)
     async with AsyncSessionLocal() as db:
         existing = (await db.execute(
             select(Plugin).where(Plugin.name == plugin_class.name)
@@ -199,13 +218,16 @@ async def install_plugin(package_name: str, whl_path: Path | None = None) -> dic
                 {"label": s.label, "route": s.route, "icon": s.icon, "order": s.order}
                 for s in plugin_instance.get_sidebar_items()
             ],
-            "widgets": [
-                {"component": w.component, "title": w.title, "order": w.order}
-                for w in plugin_instance.get_dashboard_widgets()
-            ],
         }
+        logger.debug(
+            "[install:%s] meta snapshot — esi_scopes=%s  sidebar_items=%d",
+            package_name,
+            meta_snapshot["esi_scopes"],
+            len(meta_snapshot["sidebar_items"]),
+        )
 
         if existing is None:
+            logger.info("[install:%s] step 7/11 — inserting new Plugin row", package_name)
             db_plugin = Plugin(
                 name=plugin_class.name,
                 package_name=package_name,
@@ -221,6 +243,7 @@ async def install_plugin(package_name: str, whl_path: Path | None = None) -> dic
             )
             db.add(db_plugin)
         else:
+            logger.info("[install:%s] step 7/11 — updating existing Plugin row (id=%s)", package_name, existing.id)
             existing.package_name = package_name
             existing.entry_point = entry_point_str
             existing.version = plugin_class.version
@@ -235,31 +258,32 @@ async def install_plugin(package_name: str, whl_path: Path | None = None) -> dic
             existing.updated_at = datetime.now(UTC)
 
         # 8. Seed permissions
+        logger.info("[install:%s] step 8/11 — seed permissions", package_name)
+        perms = plugin_instance.get_permissions()
+        logger.debug("[install:%s] permissions to seed: %s", package_name, [p.name for p in perms])
         await _seed_plugin_permissions(plugin_instance, db)
         await db.commit()
+        logger.info("[install:%s] step 8/11 — DB commit OK", package_name)
 
     # 9. Register in runtime registry and mount router
+    logger.info("[install:%s] step 9/11 — register runtime registry + mount router", package_name)
     registry.register(plugin_instance)
     _mount_router(plugin_instance)
     _register_celery_tasks(plugin_instance)
 
-    # 10. Mount frontend static files
-    if frontend_bundle_url and _app is not None:
-        from fastapi.staticfiles import StaticFiles
-        _app.mount(
-            frontend_bundle_url,
-            StaticFiles(directory=str(frontend_dist)),
-            name=f"plugin-{plugin_class.name}",
-        )
+    # 10. (schema-driven frontend — no static file mount needed)
+    logger.info("[install:%s] step 10/11 — skipped (schema-driven frontend)", package_name)
 
     # 11. Lifecycle hooks
+    logger.info("[install:%s] step 11/11 — lifecycle hooks on_install + on_enable", package_name)
     ctx = _make_context()
     try:
         plugin_instance.on_install(ctx)
         plugin_instance.on_enable(ctx)
     except Exception as exc:
-        logger.warning("Plugin lifecycle hook error for '%s': %s", plugin_class.name, exc)
+        logger.warning("[install:%s] step 11/11 — lifecycle hook error: %s", package_name, exc, exc_info=True)
 
+    logger.info("[install:%s] ── DONE name=%s version=%s", package_name, plugin_class.name, plugin_class.version)
     await publish_event("plugin.installed", {
         "name": plugin_class.name,
         "version": plugin_class.version,
@@ -294,6 +318,13 @@ async def enable_plugin(name: str) -> None:
         db_plugin.status = "enabled"
         db_plugin.error_message = None
         db_plugin.updated_at = datetime.now(UTC)
+        db_plugin.meta = {
+            "esi_scopes": plugin_instance.get_esi_scopes(),
+            "sidebar_items": [
+                {"label": s.label, "route": s.route, "icon": s.icon, "order": s.order}
+                for s in plugin_instance.get_sidebar_items()
+            ],
+        }
         await db.commit()
 
     registry.register(plugin_instance)

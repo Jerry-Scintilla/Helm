@@ -1,4 +1,5 @@
 import asyncio
+import importlib.util
 import os
 import sys
 from logging.config import fileConfig
@@ -18,6 +19,25 @@ import app.models  # noqa: F401 — registers all models with Base.metadata
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.db_url)
+
+# Discover installed plugin migration directories and add them to version_locations
+_main_versions = os.path.join(os.path.dirname(__file__), "versions")
+_extra_version_paths: list[str] = []
+
+try:
+    _spec = importlib.util.find_spec("fleet_action")
+    if _spec and _spec.submodule_search_locations:
+        _pkg_root = list(_spec.submodule_search_locations)[0]
+        _candidate = os.path.join(_pkg_root, "migrations", "versions")
+        if os.path.isdir(_candidate):
+            _extra_version_paths.append(_candidate)
+except (ModuleNotFoundError, ValueError):
+    pass
+
+if _extra_version_paths:
+    existing = config.get_main_option("version_locations") or _main_versions
+    all_paths = [existing] + _extra_version_paths
+    config.set_main_option("version_locations", os.pathsep.join(all_paths))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

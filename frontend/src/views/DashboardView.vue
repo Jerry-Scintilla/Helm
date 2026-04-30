@@ -2,36 +2,57 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/api'
+import { useAuthStore } from '@/stores/auth'
 
 interface CharacterSummary {
   character_id: number
   character_name: string
   corporation_id: number | null
   alliance_id: number | null
+  is_primary: boolean
 }
 
 const router = useRouter()
+const auth = useAuthStore()
 const characters = ref<CharacterSummary[]>([])
 const loading = ref(true)
 
-onMounted(async () => {
+async function loadCharacters() {
   try {
     const res = await api.get('/api/v1/characters/')
     characters.value = res.data
   } catch {
     // ignore
-  } finally {
-    loading.value = false
   }
+}
+
+onMounted(async () => {
+  await loadCharacters()
+  loading.value = false
 })
 
 function goCharacter(id: number) {
   router.push(`/character/${id}/overview`)
 }
 
-function addCharacter() {
-  const base = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
-  window.location.href = `${base}/auth/eve/login`
+async function addCharacter() {
+  try {
+    const redirectUrl = await auth.bindCharacter()
+    window.location.href = redirectUrl
+  } catch {
+    // ignore
+  }
+}
+
+async function setPrimary(char: CharacterSummary) {
+  await api.post(`/api/v1/characters/${char.character_id}/set-primary`)
+  auth.updatePrimary(char.character_id, char.character_name)
+  await loadCharacters()
+}
+
+async function unbind(char: CharacterSummary) {
+  await api.delete(`/api/v1/characters/${char.character_id}`)
+  await loadCharacters()
 }
 </script>
 
@@ -56,25 +77,45 @@ function addCharacter() {
         v-for="char in characters"
         :key="char.character_id"
         class="char-card"
-        @click="goCharacter(char.character_id)"
+        :class="{ 'char-card--primary': char.is_primary }"
       >
-        <img
-          :src="`https://images.evetech.net/characters/${char.character_id}/portrait?size=128`"
-          :alt="char.character_name"
-          class="char-portrait"
-        />
-        <div class="char-info">
-          <div class="char-name">{{ char.character_name }}</div>
-          <div class="char-meta">
-            <span v-if="char.corporation_id" class="meta-tag">
-              Corp {{ char.corporation_id }}
-            </span>
-            <span v-if="char.alliance_id" class="meta-tag">
-              Alliance {{ char.alliance_id }}
-            </span>
+        <div class="char-main" @click="goCharacter(char.character_id)">
+          <div class="char-portrait-wrap">
+            <img
+              :src="`https://images.evetech.net/characters/${char.character_id}/portrait?size=128`"
+              :alt="char.character_name"
+              class="char-portrait"
+            />
           </div>
+          <div class="char-info">
+            <div class="char-name-row">
+              <span class="char-name">{{ char.character_name }}</span>
+              <span v-if="char.is_primary" class="primary-badge">◈ 主角色</span>
+            </div>
+            <div class="char-meta">
+              <span v-if="char.corporation_id" class="meta-tag">Corp {{ char.corporation_id }}</span>
+              <span v-if="char.alliance_id" class="meta-tag">Alliance {{ char.alliance_id }}</span>
+            </div>
+          </div>
+          <div class="char-arrow">→</div>
         </div>
-        <div class="char-arrow">→</div>
+
+        <div class="char-actions" v-if="characters.length > 1 || !char.is_primary">
+          <button
+            v-if="!char.is_primary"
+            class="action-btn action-btn--primary"
+            @click.stop="setPrimary(char)"
+          >
+            设为主角色
+          </button>
+          <button
+            v-if="!char.is_primary"
+            class="action-btn action-btn--danger"
+            @click.stop="unbind(char)"
+          >
+            解绑
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -121,36 +162,59 @@ function addCharacter() {
   gap: 10px;
 }
 .char-card {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px 20px;
   background: #1e1e1c;
   border: 1px solid #30302e;
   border-radius: 8px;
-  cursor: pointer;
+  overflow: hidden;
   transition: border-color 0.18s, background 0.18s;
 }
 .char-card:hover {
   border-color: #c96442;
   background: #252523;
 }
+.char-card--primary {
+  border-color: #c96442;
+}
+.char-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  cursor: pointer;
+}
+.char-portrait-wrap {
+  flex-shrink: 0;
+}
 .char-portrait {
   width: 56px;
   height: 56px;
   border-radius: 6px;
   border: 1px solid #30302e;
-  flex-shrink: 0;
+  display: block;
 }
 .char-info {
   flex: 1;
   min-width: 0;
 }
+.char-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
 .char-name {
   font-size: 1rem;
   font-weight: 500;
   color: #faf9f5;
-  margin-bottom: 6px;
+}
+.primary-badge {
+  font-size: 0.72rem;
+  color: #c96442;
+  background: rgba(201, 100, 66, 0.12);
+  border: 1px solid rgba(201, 100, 66, 0.3);
+  padding: 1px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
 }
 .char-meta {
   display: flex;
@@ -167,5 +231,36 @@ function addCharacter() {
 .char-arrow {
   color: #5e5d59;
   font-size: 1rem;
+}
+.char-actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px 20px 12px;
+  border-top: 1px solid #2a2a28;
+}
+.action-btn {
+  font-size: 0.78rem;
+  padding: 3px 12px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  background: transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.action-btn--primary {
+  color: #87867f;
+  border-color: #30302e;
+}
+.action-btn--primary:hover {
+  color: #c96442;
+  border-color: #c96442;
+}
+.action-btn--danger {
+  color: #5e5d59;
+  border-color: #30302e;
+}
+.action-btn--danger:hover {
+  color: #b53333;
+  border-color: #b53333;
 }
 </style>

@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -46,6 +46,7 @@ async def list_characters(
             "character_name": c.character_name,
             "corporation_id": c.corporation_id,
             "alliance_id": c.alliance_id,
+            "is_primary": c.is_primary,
         }
         for c in characters
     ]
@@ -334,3 +335,51 @@ async def get_notifications(
         type_field="sender_type",
     )
     return notif_rows
+
+
+@router.post("/{character_id}/set-primary")
+async def set_primary_character(
+    character_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("character.view")),
+):
+    char = await _get_character_for_user(character_id, current_user, db)
+
+    # Clear primary flag on all user's characters, then set on target
+    await db.execute(
+        update(Character)
+        .where(Character.user_id == current_user.id)
+        .values(is_primary=False)
+    )
+    char.is_primary = True
+    current_user.username = char.character_name
+    await db.commit()
+
+    return {"ok": True, "character_id": char.character_id, "character_name": char.character_name}
+
+
+@router.delete("/{character_id}")
+async def unbind_character(
+    character_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("character.view")),
+):
+    char = await _get_character_for_user(character_id, current_user, db)
+
+    if char.is_primary:
+        raise HTTPException(status_code=400, detail="不能解绑主角色，请先将其他角色设为主角色")
+
+    # Ensure user has at least one other character
+    result = await db.execute(
+        select(Character).where(
+            Character.user_id == current_user.id,
+            Character.character_id != character_id,
+            Character.is_active == True,
+        )
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=400, detail="账号至少需要保留一个角色")
+
+    await db.delete(char)
+    await db.commit()
+    return Response(status_code=204)

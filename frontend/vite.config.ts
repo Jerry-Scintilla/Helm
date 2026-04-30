@@ -16,11 +16,11 @@ export default defineConfig({
     allowedHosts: ['develop.helm.dpdns.org'],
     proxy: {
       '/plugin-ui': {
-        target: 'http://localhost:8000',
+        target: process.env.VITE_API_URL ?? 'http://localhost:8000',
         changeOrigin: true,
       },
       '/plugin-sdk': {
-        target: 'http://localhost:8000',
+        target: process.env.VITE_API_URL ?? 'http://localhost:8000',
         changeOrigin: true,
       },
     },

@@ -1,8 +1,9 @@
+import json
 import secrets
 from datetime import UTC, datetime, timedelta
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from jose import JWTError
 from pydantic import BaseModel
@@ -11,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db, AsyncSessionLocal
-from app.core.permissions import assign_player_role
+from app.core.permissions import assign_player_role, get_current_user
 from app.core.redis import get_pool
 from app.core.security import create_access_token, create_refresh_token, hash_token
 from app.esi import oauth as eve_oauth
@@ -45,25 +46,39 @@ def _redis() -> aioredis.Redis:
     return aioredis.Redis(connection_pool=get_pool())
 
 
-@router.get("/eve/login")
-async def eve_login():
-    """Redirect to EVE SSO login page."""
-    state = secrets.token_urlsafe(16)
-
-    # Collect ESI scopes declared by all enabled plugins
-    plugin_scopes: list[str] = []
+async def _collect_plugin_scopes() -> list[str]:
     async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(Plugin).where(Plugin.is_enabled == True)
         )
+        scopes: list[str] = []
         for plugin in result.scalars().all():
-            scopes = (plugin.meta or {}).get("esi_scopes", [])
-            plugin_scopes.extend(scopes)
+            scopes.extend((plugin.meta or {}).get("esi_scopes", []))
+        return scopes
 
+
+@router.get("/eve/login")
+async def eve_login():
+    """Redirect to EVE SSO login page."""
+    state = secrets.token_urlsafe(16)
+    plugin_scopes = await _collect_plugin_scopes()
     login_url, verifier = eve_oauth.get_login_url(state, extra_scopes=plugin_scopes or None)
+    state_data = json.dumps({"type": "login", "verifier": verifier})
     async with _redis() as r:
-        await r.set(f"helm:oauth:state:{state}", verifier, ex=_OAUTH_STATE_TTL)
+        await r.set(f"helm:oauth:state:{state}", state_data, ex=_OAUTH_STATE_TTL)
     return RedirectResponse(login_url)
+
+
+@router.get("/eve/bind")
+async def eve_bind(current_user: User = Depends(get_current_user)):
+    """Return an EVE SSO URL for binding an additional character to the current account."""
+    state = secrets.token_urlsafe(16)
+    plugin_scopes = await _collect_plugin_scopes()
+    login_url, verifier = eve_oauth.get_login_url(state, extra_scopes=plugin_scopes or None)
+    state_data = json.dumps({"type": "bind", "user_id": current_user.id, "verifier": verifier})
+    async with _redis() as r:
+        await r.set(f"helm:oauth:state:{state}", state_data, ex=_OAUTH_STATE_TTL)
+    return {"redirect_url": login_url}
 
 
 @router.get("/eve/callback")
@@ -72,14 +87,24 @@ async def eve_callback(
     state: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """Handle EVE SSO callback, create/update user, return JWT tokens."""
+    """Handle EVE SSO callback. Supports both login and character-bind flows."""
     async with _redis() as r:
         key = f"helm:oauth:state:{state}"
-        verifier = await r.get(key)
-        if verifier is not None:
+        raw = await r.get(key)
+        if raw is not None:
             await r.delete(key)
-    if verifier is None:
+    if raw is None:
         raise HTTPException(status_code=400, detail="Invalid state parameter")
+
+    # Support old plain-string verifier format for backward compatibility
+    raw_str = raw.decode() if isinstance(raw, bytes) else raw
+    try:
+        state_data = json.loads(raw_str)
+        flow_type = state_data.get("type", "login")
+        verifier = state_data["verifier"]
+    except (json.JSONDecodeError, KeyError):
+        flow_type = "login"
+        verifier = raw_str
 
     try:
         token_data = await eve_oauth.exchange_code(code, verifier)
@@ -94,7 +119,71 @@ async def eve_callback(
     character_id = char_info["character_id"]
     character_name = char_info["character_name"]
 
-    # Upsert User (keyed by character_name as username for now)
+    jwt_scopes = char_info.get("scopes", [])
+    if isinstance(jwt_scopes, str):
+        jwt_scopes = jwt_scopes.split()
+    scopes = " ".join(jwt_scopes) if jwt_scopes else token_data.get("scope", "")
+    token_expires_at = (
+        datetime.now(UTC) + timedelta(seconds=token_data["expires_in"])
+        if "expires_in" in token_data else None
+    )
+
+    if flow_type == "bind":
+        return await _handle_bind(
+            db, state_data, character_id, character_name, token_data, scopes, token_expires_at
+        )
+    else:
+        return await _handle_login(
+            db, character_id, character_name, token_data, scopes, token_expires_at
+        )
+
+
+async def _handle_bind(db, state_data, character_id, character_name, token_data, scopes, token_expires_at):
+    """Bind a new character to an existing user account."""
+    user_id = state_data.get("user_id")
+    if user_id is None:
+        raise HTTPException(status_code=400, detail="Missing user_id in bind state")
+
+    result = await db.execute(select(User).where(User.id == user_id, User.is_active == True))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=400, detail="Target user not found")
+
+    result = await db.execute(select(Character).where(Character.character_id == character_id))
+    character = result.scalar_one_or_none()
+
+    if character is None:
+        character = Character(
+            character_id=character_id,
+            user_id=user_id,
+            character_name=character_name,
+            access_token=token_data["access_token"],
+            refresh_token=token_data["refresh_token"],
+            token_expires_at=token_expires_at,
+            scopes=scopes,
+            is_primary=False,
+        )
+        db.add(character)
+    else:
+        # Migrate character from another account — always demote to non-primary
+        character.user_id = user_id
+        character.is_primary = False
+        character.character_name = character_name
+        character.access_token = token_data["access_token"]
+        character.refresh_token = token_data["refresh_token"]
+        character.scopes = scopes
+        if token_expires_at is not None:
+            character.token_expires_at = token_expires_at
+
+    await db.commit()
+    await db.refresh(character)
+    _dispatch_initial_sync(character.id)
+
+    return {"type": "bind", "character_id": character_id, "character_name": character_name}
+
+
+async def _handle_login(db, character_id, character_name, token_data, scopes, token_expires_at):
+    """Login flow: upsert user and character, issue JWT tokens."""
     result = await db.execute(select(User).where(User.username == character_name))
     user = result.scalar_one_or_none()
     is_new_user = user is None
@@ -103,21 +192,9 @@ async def eve_callback(
         db.add(user)
         await db.flush()
 
-    # Upsert Character
     result = await db.execute(select(Character).where(Character.character_id == character_id))
     character = result.scalar_one_or_none()
 
-    # RFC 6749 §5.1 allows servers to omit `scope` from token response when
-    # it matches the request, so prefer the JWT `scp` claim (always present,
-    # cryptographically signed) over the token response body.
-    jwt_scopes = char_info.get("scopes", [])
-    if isinstance(jwt_scopes, str):
-        jwt_scopes = jwt_scopes.split()
-    scopes = " ".join(jwt_scopes) if jwt_scopes else token_data.get("scope", "")
-    expires_at = (
-        datetime.now(UTC) + timedelta(seconds=token_data["expires_in"])
-        if "expires_in" in token_data else None
-    )
     if character is None:
         character = Character(
             character_id=character_id,
@@ -125,21 +202,32 @@ async def eve_callback(
             character_name=character_name,
             access_token=token_data["access_token"],
             refresh_token=token_data["refresh_token"],
-            token_expires_at=expires_at,
+            token_expires_at=token_expires_at,
             scopes=scopes,
+            is_primary=True,
         )
         db.add(character)
     else:
         character.access_token = token_data["access_token"]
         character.refresh_token = token_data["refresh_token"]
         character.scopes = scopes
-        if expires_at is not None:
-            character.token_expires_at = expires_at
+        if token_expires_at is not None:
+            character.token_expires_at = token_expires_at
 
     if is_new_user:
         await assign_player_role(user.id, db)
 
-    # Issue Helm JWT tokens
+    # Find the primary character for this user to return in the response
+    await db.flush()
+    primary_result = await db.execute(
+        select(Character).where(Character.user_id == user.id, Character.is_primary == True)
+    )
+    primary = primary_result.scalar_one_or_none()
+    if primary is None:
+        # Fallback: the character just logged in becomes primary
+        character.is_primary = True
+        primary = character
+
     access_token = create_access_token(user.id)
     raw_refresh, hashed_refresh = create_refresh_token()
 
@@ -152,16 +240,16 @@ async def eve_callback(
     db.add(db_refresh)
     await db.commit()
 
-    # Trigger immediate ESI sync for this character
     _dispatch_initial_sync(character.id)
 
-    # Return tokens — in production set as HttpOnly cookies
     return {
         "access_token": access_token,
         "refresh_token": raw_refresh,
         "token_type": "bearer",
-        "character_id": character_id,
-        "character_name": character_name,
+        "character_id": primary.character_id,
+        "character_name": primary.character_name,
+        "primary_character_id": primary.character_id,
+        "primary_character_name": primary.character_name,
         "is_superuser": user.is_superuser,
     }
 

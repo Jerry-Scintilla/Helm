@@ -65,7 +65,7 @@ function fmtDate(dt: string | null) {
             <span>发件人 {{ charStore.selectedMail.from_name ?? charStore.selectedMail.from_id ?? '?' }}</span>
             <span>{{ fmtDate(charStore.selectedMail.timestamp) }}</span>
           </div>
-          <div class="detail-body">{{ charStore.selectedMail.body }}</div>
+          <div class="detail-body" v-html="charStore.selectedMail.body" />
         </div>
         <div v-else class="no-selection">← 点击左侧邮件查看内容</div>
       </div>
@@ -112,5 +112,8 @@ function fmtDate(dt: string | null) {
 .no-selection { color: #5e5d59; font-size: 0.9rem; }
 .detail-subject { font-size: 1.1rem; font-weight: 500; color: #faf9f5; margin-bottom: 8px; }
 .detail-meta { display: flex; gap: 16px; font-size: 0.8rem; color: #87867f; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #30302e; }
-.detail-body { font-size: 0.9rem; color: #b0aea5; line-height: 1.7; white-space: pre-wrap; }
+.detail-body { font-size: 0.9rem; color: #b0aea5; line-height: 1.7; }
+.detail-body :deep(a) { color: #c96442; text-decoration: none; }
+.detail-body :deep(a:hover) { text-decoration: underline; }
+.detail-body :deep(font[size]) { font-size: inherit; }
 </style>

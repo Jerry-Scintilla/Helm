@@ -18,7 +18,7 @@ async def _refresh_character(char: Character) -> None:
     from app.tasks.characters.wallet import _update_wallet  # noqa: PLC0415
     from app.tasks.characters.skills import _update_skills  # noqa: PLC0415
     from app.tasks.characters.assets import _update_assets  # noqa: PLC0415
-    from app.tasks.characters.mail import _update_mail, _fetch_mail_bodies  # noqa: PLC0415
+    from app.tasks.characters.mail import _update_mail, _fetch_all_empty_bodies  # noqa: PLC0415
     from app.tasks.characters.wallet_journal import _update_wallet_journal  # noqa: PLC0415
     from app.tasks.characters.wallet_transactions import _update_wallet_transactions  # noqa: PLC0415
     from app.tasks.characters.skill_queue import _update_skill_queue  # noqa: PLC0415
@@ -26,7 +26,7 @@ async def _refresh_character(char: Character) -> None:
 
     for fn in [
         _update_wallet, _update_skills, _update_assets,
-        _update_mail, _fetch_mail_bodies,
+        _update_mail, _fetch_all_empty_bodies,
         _update_wallet_journal, _update_wallet_transactions,
         _update_skill_queue, _update_notifications,
     ]:

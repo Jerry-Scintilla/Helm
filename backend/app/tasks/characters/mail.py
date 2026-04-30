@@ -45,18 +45,80 @@ async def _update_mail(character: Character) -> None:
                     character_id=character.id,
                     mail_id=mail["mail_id"],
                     subject=mail.get("subject", ""),
-                    from_id=mail.get("from"),
+                    from_id=mail.get("from_id"),
                     timestamp=timestamp,
                     is_read=mail.get("is_read", False),
+                    body=mail.get("body", ""),
                 ))
             else:
                 row.is_read = mail.get("is_read", False)
+                row.subject = mail.get("subject", row.subject)
+                row.from_id = mail.get("from_id", row.from_id)
                 row.updated_at = datetime.now(UTC)
         await db.commit()
 
 
-async def _fetch_mail_bodies(character: Character) -> None:
-    """Fetch bodies for mails that have empty body."""
+async def _fetch_mail_body(character: Character, mail_id: int) -> None:
+    """Fetch body for a single mail."""
+    esi = get_esi_client()
+    try:
+        data = await esi.get(
+            f"/characters/{character.character_id}/mail/{mail_id}/",
+            token=character.access_token,
+            refresh_token=character.refresh_token,
+            character_id=character.character_id,
+        )
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(CharacterMail).where(
+                    CharacterMail.character_id == character.id,
+                    CharacterMail.mail_id == mail_id,
+                )
+            )
+            row = result.scalar_one_or_none()
+            if row:
+                row.body = data.get("body", "")
+                row.updated_at = datetime.now(UTC)
+                await db.commit()
+    except Exception:
+        pass
+
+
+@celery_app.task(name="app.tasks.characters.mail.update_mail")
+def update_mail(character_db_id: int) -> None:
+    async def _run():
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(Character).where(Character.id == character_db_id))
+            char = result.scalar_one_or_none()
+        if char:
+            await _update_mail(char)
+    run_async(_run())
+
+
+@celery_app.task(name="app.tasks.characters.mail.fetch_mail_body")
+def fetch_mail_body(character_db_id: int, mail_id: int) -> None:
+    async def _run():
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(Character).where(Character.id == character_db_id))
+            char = result.scalar_one_or_none()
+        if char:
+            await _fetch_mail_body(char, mail_id)
+    run_async(_run())
+
+
+@celery_app.task(name="app.tasks.characters.mail.update_all_mail")
+def update_all_mail() -> None:
+    async def _run():
+        characters = await get_active_characters()
+        for char in characters:
+            await _update_mail(char)
+            # fetch all empty bodies for this character
+            await _fetch_all_empty_bodies(char)
+    run_async(_run())
+
+
+async def _fetch_all_empty_bodies(character: Character) -> None:
+    """Fetch bodies for all mails with empty body for a character."""
     esi = get_esi_client()
     async with AsyncSessionLocal() as db:
         result = await db.execute(
@@ -84,24 +146,3 @@ async def _fetch_mail_bodies(character: Character) -> None:
                     await db.commit()
         except Exception:
             continue
-
-
-@celery_app.task(name="app.tasks.characters.mail.update_mail")
-def update_mail(character_db_id: int) -> None:
-    async def _run():
-        async with AsyncSessionLocal() as db:
-            result = await db.execute(select(Character).where(Character.id == character_db_id))
-            char = result.scalar_one_or_none()
-        if char:
-            await _update_mail(char)
-    run_async(_run())
-
-
-@celery_app.task(name="app.tasks.characters.mail.update_all_mail")
-def update_all_mail() -> None:
-    async def _run():
-        characters = await get_active_characters()
-        for char in characters:
-            await _update_mail(char)
-            await _fetch_mail_bodies(char)
-    run_async(_run())

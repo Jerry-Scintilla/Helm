@@ -203,6 +203,7 @@ async def get_mail(
             "from_id": m.from_id,
             "timestamp": m.timestamp,
             "is_read": m.is_read,
+            "body": m.body,
         }
         for m in mails
     ]
@@ -229,6 +230,13 @@ async def get_mail_detail(
         raise HTTPException(status_code=404, detail="Mail not found")
     detail_rows = [{"from_id": mail.from_id}]
     await enrich_entity_names(detail_rows, id_field="from_id", name_field="from_name")
+
+    # If body is empty, trigger a background refresh
+    if not mail.body:
+        from app.tasks.characters.mail import fetch_mail_body
+        fetch_mail_body.delay(char.id, mail_id)
+        _logger.info("Triggered mail body refresh for character %d, mail %d", char.id, mail_id)
+
     return {
         "mail_id": mail.mail_id,
         "subject": mail.subject,

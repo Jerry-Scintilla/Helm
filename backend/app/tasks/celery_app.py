@@ -23,6 +23,7 @@ celery_app = Celery(
         "app.tasks.sde.import_sde",
         "app.tasks.bucket.scheduler",
         "app.tasks.bucket.runner",
+        "app.tasks.esi_cache.refresh",
     ],
 )
 

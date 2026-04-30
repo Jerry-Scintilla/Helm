@@ -25,6 +25,7 @@ from app.plugins.installer import (
     load_plugin_class,
     pip_install,
     pip_uninstall,
+    run_plugin_downgrade,
     run_plugin_migrations,
 )
 from app.plugins.registry import HELM_SDK_VERSION, extension_registry, registry
@@ -184,9 +185,10 @@ async def install_plugin(package_name: str, whl_path: Path | None = None) -> dic
         package_name, plugin_class.__name__, plugin_class.version, plugin_class.helm_sdk_version,
     )
 
-    # 4. Run plugin-own alembic migrations
+    # 4. Run plugin alembic migrations via main context (in-process)
     logger.info("[install:%s] step 4/11 — alembic migrations", package_name)
     mig_ok, mig_out = await run_plugin_migrations(
+        plugin_class.name,
         plugin_dir,
         on_line=lambda line: logger.info("[install:%s] alembic | %s", package_name, line),
     )
@@ -374,6 +376,22 @@ async def uninstall_plugin(name: str, pip_remove: bool = False) -> None:
     # Disable first (handles hooks + extension registry + router unmount)
     if registry.is_loaded(name):
         await disable_plugin(name)
+
+    # Downgrade DB migrations before pip removal (package must still be importable)
+    async with AsyncSessionLocal() as db:
+        db_plugin_for_mig = (await db.execute(
+            select(Plugin).where(Plugin.name == name)
+        )).scalar_one_or_none()
+    if db_plugin_for_mig:
+        try:
+            ep_result = discover_entry_point(db_plugin_for_mig.package_name)
+            if ep_result is not None:
+                _ep_str, plugin_dir = ep_result
+                mig_ok, mig_out = await run_plugin_downgrade(name, plugin_dir)
+                if not mig_ok:
+                    logger.warning("[uninstall:%s] downgrade failed (non-blocking): %s", name, mig_out)
+        except Exception as exc:
+            logger.warning("[uninstall:%s] downgrade error (non-blocking): %s", name, exc)
 
     if pip_remove:
         async with AsyncSessionLocal() as db:

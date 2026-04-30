@@ -9,13 +9,20 @@ wrapped in asyncio.to_thread instead — works on all platforms.
 import asyncio
 import importlib
 import importlib.metadata
+import io
 import logging
+import os
 import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
 
+from alembic import command as alembic_command
+from alembic.config import Config as AlembicConfig
 from packaging.utils import canonicalize_name
+
+# Path to the main alembic.ini (backend/alembic.ini), fixed relative to this file.
+_ALEMBIC_INI = Path(__file__).parent.parent.parent / "alembic.ini"
 
 logger = logging.getLogger(__name__)
 
@@ -58,30 +65,77 @@ async def pip_uninstall(package: str) -> tuple[bool, str]:
 
 
 async def run_plugin_migrations(
+    plugin_name: str,
     plugin_dir: Path,
     on_line: Callable[[str], None] | None = None,
 ) -> tuple[bool, str]:
-    """Run `alembic upgrade head` inside the plugin's own alembic directory, if present."""
-    alembic_ini = plugin_dir / "migrations" / "alembic.ini"
-    if not alembic_ini.exists():
+    """
+    Upgrade a plugin's migration branch to head using the main alembic context (in-process).
+
+    plugin_name must match the branch_labels value in the plugin's first migration file.
+    Runs inside asyncio.to_thread so alembic's internal asyncio.run() gets a fresh loop.
+    """
+    versions_dir = plugin_dir / "migrations" / "versions"
+    if not versions_dir.is_dir():
         return True, "no migrations"
 
     def _run() -> tuple[bool, str]:
-        proc = subprocess.Popen(
-            [sys.executable, "-m", "alembic", "-c", str(alembic_ini), "upgrade", "head"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            cwd=str(plugin_dir / "migrations"),
-        )
-        output_lines: list[str] = []
-        assert proc.stdout is not None
-        for raw in proc.stdout:
-            line = raw.decode(errors="replace").rstrip()
-            output_lines.append(line)
+        buf = io.StringIO()
+        try:
+            cfg = AlembicConfig(str(_ALEMBIC_INI), stdout=buf)
+            # env.py normally discovers the plugin via entry_points, but inject here
+            # as a fallback in case importlib caches haven't refreshed in this thread.
+            existing = cfg.get_main_option("version_locations") or ""
+            vs = str(versions_dir)
+            if vs not in existing:
+                cfg.set_main_option(
+                    "version_locations",
+                    (existing + os.pathsep + vs) if existing else vs,
+                )
+            alembic_command.upgrade(cfg, f"{plugin_name}@head")
+            out = buf.getvalue()
             if on_line:
-                on_line(line)
-        proc.wait()
-        return proc.returncode == 0, "\n".join(output_lines)
+                for line in out.splitlines():
+                    on_line(line)
+            return True, out or f"upgraded {plugin_name}@head"
+        except Exception as exc:
+            out = buf.getvalue()
+            logger.error("Plugin migration failed for '%s': %s", plugin_name, exc, exc_info=True)
+            return False, (f"{out}\n{exc}" if out else str(exc))
+
+    return await asyncio.to_thread(_run)
+
+
+async def run_plugin_downgrade(
+    plugin_name: str,
+    plugin_dir: Path,
+) -> tuple[bool, str]:
+    """
+    Downgrade a plugin's migration branch to base (removes all its tables).
+    Must be called before pip_uninstall while the package is still importable.
+    """
+    versions_dir = plugin_dir / "migrations" / "versions"
+    if not versions_dir.is_dir():
+        return True, "no migrations"
+
+    def _run() -> tuple[bool, str]:
+        buf = io.StringIO()
+        try:
+            cfg = AlembicConfig(str(_ALEMBIC_INI), stdout=buf)
+            existing = cfg.get_main_option("version_locations") or ""
+            vs = str(versions_dir)
+            if vs not in existing:
+                cfg.set_main_option(
+                    "version_locations",
+                    (existing + os.pathsep + vs) if existing else vs,
+                )
+            alembic_command.downgrade(cfg, f"{plugin_name}@base")
+            out = buf.getvalue()
+            return True, out or f"downgraded {plugin_name}@base"
+        except Exception as exc:
+            out = buf.getvalue()
+            logger.error("Plugin downgrade failed for '%s': %s", plugin_name, exc, exc_info=True)
+            return False, (f"{out}\n{exc}" if out else str(exc))
 
     return await asyncio.to_thread(_run)
 

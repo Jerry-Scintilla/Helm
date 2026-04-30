@@ -1,4 +1,5 @@
 import asyncio
+import importlib.metadata
 import importlib.util
 import os
 import sys
@@ -20,19 +21,22 @@ import app.models  # noqa: F401 — registers all models with Base.metadata
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.db_url)
 
-# Discover installed plugin migration directories and add them to version_locations
+# Discover all installed helm plugins and add their migration version directories
 _main_versions = os.path.join(os.path.dirname(__file__), "versions")
 _extra_version_paths: list[str] = []
 
-try:
-    _spec = importlib.util.find_spec("fleet_action")
-    if _spec and _spec.submodule_search_locations:
-        _pkg_root = list(_spec.submodule_search_locations)[0]
-        _candidate = os.path.join(_pkg_root, "migrations", "versions")
-        if os.path.isdir(_candidate):
-            _extra_version_paths.append(_candidate)
-except (ModuleNotFoundError, ValueError):
-    pass
+importlib.invalidate_caches()  # ensure packages installed in this process are visible
+for _ep in importlib.metadata.entry_points(group="helm.plugins"):
+    try:
+        _module_name = _ep.value.split(":")[0].split(".")[0]
+        _spec = importlib.util.find_spec(_module_name)
+        if _spec and _spec.submodule_search_locations:
+            _pkg_root = list(_spec.submodule_search_locations)[0]
+            _candidate = os.path.join(_pkg_root, "migrations", "versions")
+            if os.path.isdir(_candidate):
+                _extra_version_paths.append(_candidate)
+    except (ModuleNotFoundError, ValueError, AttributeError):
+        pass
 
 if _extra_version_paths:
     existing = config.get_main_option("version_locations") or _main_versions

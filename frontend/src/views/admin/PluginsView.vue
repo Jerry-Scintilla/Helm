@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, nextTick } from 'vue'
+import { onMounted, onUnmounted, ref, nextTick, watch } from 'vue'
 import { usePluginStore } from '@/stores/plugin'
 import { useMessage } from 'naive-ui'
 
@@ -17,7 +17,6 @@ const logContainer = ref<HTMLElement | null>(null)
 // Uninstall confirm modal
 const showUninstall = ref(false)
 const uninstallTarget = ref('')
-const pipRemove = ref(false)
 const uninstalling = ref(false)
 
 onMounted(async () => {
@@ -33,12 +32,22 @@ onUnmounted(() => {
   store.stopSSE()
 })
 
+watch(() => store.installing, (cur, prev) => {
+  if (prev && !cur && showInstall.value) {
+    if (store.installSucceeded) {
+      showInstall.value = false
+      message.success('插件安装成功')
+    } else {
+      message.error('插件安装失败，请查看日志')
+    }
+  }
+})
+
 async function handleInstall() {
   if (installTab.value === 'pypi') {
     if (!packageName.value.trim()) return
     try {
       await store.installByName(packageName.value.trim())
-      message.info('安装任务已提交，请关注日志')
     } catch {
       message.error('提交安装失败')
     }
@@ -46,7 +55,6 @@ async function handleInstall() {
     if (!whlFile.value) return
     try {
       await store.installByWhl(whlFile.value)
-      message.info('安装任务已提交，请关注日志')
     } catch {
       message.error('提交安装失败')
     }
@@ -60,14 +68,13 @@ function onFileChange(e: Event) {
 
 function openUninstall(name: string) {
   uninstallTarget.value = name
-  pipRemove.value = false
   showUninstall.value = true
 }
 
 async function confirmUninstall() {
   uninstalling.value = true
   try {
-    await store.uninstallPlugin(uninstallTarget.value, pipRemove.value)
+    await store.uninstallPlugin(uninstallTarget.value)
     message.success(`插件 ${uninstallTarget.value} 已卸载`)
     showUninstall.value = false
   } catch {
@@ -199,8 +206,7 @@ function scrollLog() {
 
     <!-- Uninstall confirm modal -->
     <n-modal v-model:show="showUninstall" preset="card" title="确认卸载" style="width:400px;max-width:95vw">
-      <p class="confirm-text">确定要卸载插件 <strong>{{ uninstallTarget }}</strong> 吗？插件数据将保留在数据库中。</p>
-      <n-checkbox v-model:checked="pipRemove" style="margin-top:12px">同时从 virtualenv 中 pip uninstall</n-checkbox>
+      <p class="confirm-text">确定要卸载插件 <strong>{{ uninstallTarget }}</strong> 吗？此操作将回退数据库迁移并从虚拟环境中移除该插件包，无法撤销。</p>
       <template #footer>
         <div style="display:flex;justify-content:flex-end;gap:8px">
           <n-button @click="showUninstall = false">取消</n-button>

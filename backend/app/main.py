@@ -1,4 +1,6 @@
 from contextlib import asynccontextmanager
+import logging
+import logging.config
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -6,6 +8,32 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+logging.config.dictConfig({
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "default": {
+            "format": "%(levelname)s:     %(name)s - %(message)s",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "default",
+            "stream": "ext://sys.stdout",
+        },
+    },
+    "loggers": {
+        "app": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+    },
+})
 from app.core.database import AsyncSessionLocal
 from app.core.permissions import seed_permissions
 from app.routers import auth, characters, admin, corporations, alliances, api_tokens
@@ -28,11 +56,14 @@ async def _ensure_default_bucket() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.debug("lifespan startup begin")
     # Startup
     async with AsyncSessionLocal() as db:
         await seed_permissions(db)
     await _ensure_default_bucket()
+    logger.debug("calling load_plugins")
     await load_plugins(app)
+    logger.debug("lifespan startup complete")
     yield
     # Shutdown
     await stop_listener()

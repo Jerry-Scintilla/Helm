@@ -173,10 +173,9 @@ async def disable(
 @router.delete("/{name}", status_code=204)
 async def uninstall(
     name: str,
-    pip_remove: bool = False,
     _: User = Depends(require_permission("global.plugin_manage")),
 ):
-    await uninstall_plugin(name, pip_remove=pip_remove)
+    await uninstall_plugin(name)
 
 
 @router.get("/{name}/status", response_model=PluginStatusResponse)

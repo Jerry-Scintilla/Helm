@@ -30,6 +30,7 @@ export const usePluginStore = defineStore('plugin', () => {
   const plugins = ref<PluginInfo[]>([])
   const installLog = ref<string[]>([])
   const installing = ref(false)
+  const installSucceeded = ref(false)
 
   let _sse: EventSource | null = null
 
@@ -49,27 +50,15 @@ export const usePluginStore = defineStore('plugin', () => {
   }
 
   async function installByName(packageName: string) {
-    installing.value = true
-    installLog.value = []
-    try {
-      await api.post('/api/v1/admin/plugins/install', { package_name: packageName })
-    } finally {
-      installing.value = false
-    }
+    await api.post('/api/v1/admin/plugins/install', { package_name: packageName })
   }
 
   async function installByWhl(file: File) {
-    installing.value = true
-    installLog.value = []
-    try {
-      const form = new FormData()
-      form.append('file', file)
-      await api.post('/api/v1/admin/plugins/install/upload', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-    } finally {
-      installing.value = false
-    }
+    const form = new FormData()
+    form.append('file', file)
+    await api.post('/api/v1/admin/plugins/install/upload', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
   }
 
   async function enablePlugin(name: string) {
@@ -82,8 +71,8 @@ export const usePluginStore = defineStore('plugin', () => {
     await fetchPlugins()
   }
 
-  async function uninstallPlugin(name: string, pipRemove = false) {
-    await api.delete(`/api/v1/admin/plugins/${name}`, { params: { pip_remove: pipRemove } })
+  async function uninstallPlugin(name: string) {
+    await api.delete(`/api/v1/admin/plugins/${name}`)
     await fetchPlugins()
   }
 
@@ -97,8 +86,11 @@ export const usePluginStore = defineStore('plugin', () => {
         const ev = JSON.parse(e.data) as { type: string; line?: string }
         if (ev.type === 'plugin.install.log' && ev.line !== undefined) {
           installLog.value.push(ev.line)
+        } else if (ev.type === 'plugin.installed') {
+          installing.value = false
+          installSucceeded.value = true
+          fetchPlugins()
         } else if (
-          ev.type === 'plugin.installed' ||
           ev.type === 'plugin.enabled' ||
           ev.type === 'plugin.disabled' ||
           ev.type === 'plugin.uninstalled'
@@ -106,9 +98,11 @@ export const usePluginStore = defineStore('plugin', () => {
           fetchPlugins()
         } else if (ev.type === 'plugin.installing') {
           installing.value = true
+          installSucceeded.value = false
           installLog.value = []
         } else if (ev.type === 'plugin.install.failed') {
           installing.value = false
+          installSucceeded.value = false
         }
       } catch {
         // ignore malformed messages
@@ -129,6 +123,7 @@ export const usePluginStore = defineStore('plugin', () => {
     plugins,
     installLog,
     installing,
+    installSucceeded,
     fetchPlugins,
     fetchEnabledPlugins,
     installByName,

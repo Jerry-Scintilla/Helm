@@ -2,6 +2,8 @@
 import { onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCharacterStore } from '@/stores/character'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 const route = useRoute()
 const router = useRouter()
@@ -26,6 +28,11 @@ function fmtDate(dt: string | null) {
 
 function goTab(tab: string) {
   router.push(`/character/${characterId}/${tab}`)
+}
+
+function renderMarkdown(content: string): string {
+  const html = marked(content) as string
+  return DOMPurify.sanitize(html)
 }
 </script>
 
@@ -88,6 +95,42 @@ function goTab(tab: string) {
         <button class="qnav-btn" @click="goTab('mail')">邮件</button>
         <button class="qnav-btn" @click="goTab('notifications')">通知</button>
       </div>
+
+      <!-- Plugin extensions section -->
+      <template v-if="charStore.characterInfo?.extensions?.length">
+        <div class="extensions-section">
+          <div class="extensions-title">插件数据</div>
+          <div class="extensions-grid">
+            <div
+              v-for="ext in charStore.characterInfo.extensions"
+              :key="ext.plugin_name + ext.title"
+              class="ext-card"
+              :class="ext.css_class"
+            >
+              <div class="ext-header">
+                <span class="ext-title">{{ ext.title }}</span>
+                <span class="ext-source">{{ ext.plugin_name }}</span>
+              </div>
+              <div class="ext-content">
+                <div v-if="ext.widget === 'markdown'" class="ext-markdown" v-html="renderMarkdown(ext.content)" />
+                <div v-else-if="ext.widget === 'stats'" class="ext-stats">
+                  <div v-for="stat in ext.content" :key="stat.label" class="ext-stat">
+                    <div class="ext-stat-label">{{ stat.label }}</div>
+                    <div class="ext-stat-value">{{ stat.value }}</div>
+                  </div>
+                </div>
+                <div
+                  v-else-if="ext.widget === 'iframe'"
+                  class="ext-iframe"
+                  :style="{ height: (ext.content.height || 300) + 'px' }"
+                >
+                  <iframe :src="ext.content.url" sandbox="allow-scripts allow-same-origin" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
     </template>
   </div>
 </template>
@@ -160,5 +203,63 @@ function goTab(tab: string) {
 .qnav-btn:hover {
   border-color: #c96442;
   color: #faf9f5;
+}
+
+.extensions-section {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid #30302e;
+}
+.extensions-title {
+  font-size: 0.8rem;
+  color: #87867f;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 16px;
+}
+.extensions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.ext-card {
+  background: #1e1e1c;
+  border: 1px solid #30302e;
+  border-radius: 8px;
+  padding: 18px 20px;
+}
+.ext-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.ext-title {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #faf9f5;
+}
+.ext-source {
+  font-size: 0.75rem;
+  color: #87867f;
+}
+.ext-markdown {
+  color: #b0aea5;
+  line-height: 1.6;
+  font-size: 0.9rem;
+}
+.ext-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 12px;
+}
+.ext-stat { text-align: center; }
+.ext-stat-label { font-size: 0.75rem; color: #87867f; margin-bottom: 4px; }
+.ext-stat-value { font-size: 1.1rem; font-weight: 500; color: #faf9f5; }
+.ext-iframe iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 6px;
 }
 </style>

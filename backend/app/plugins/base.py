@@ -1,7 +1,7 @@
 from abc import ABC
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from fastapi import APIRouter
@@ -28,6 +28,42 @@ class SidebarItem:
 class PluginContext:
     db_session_factory: Any = None
     esi_client: Any = None
+
+
+# ── Character Extension ────────────────────────────────────────────────────────
+
+@runtime_checkable
+class CharacterExtensionProvider(Protocol):
+    """角色页面扩展接口
+
+    插件实现此接口并在 on_enable() 中注册到 extension_registry，
+    即可在角色详情页显示自定义内容。
+
+    注册方式：
+        extension_registry.register("character.extension", self, self.name)
+    """
+
+    def get_character_extension(
+        self, character_id: int, db: "AsyncSession"
+    ) -> "CharacterExtension | None":
+        """返回角色扩展数据，不适用则返回 None"""
+        ...
+
+
+@dataclass
+class CharacterExtension:
+    """角色页面插件扩展内容"""
+    character_id: int  # 用于验证
+    title: str  # 显示标题
+    widget: Literal["markdown", "stats", "iframe"]
+    content: Any  # 内容格式见下方
+    order: int = 100  # 排序
+    css_class: str = ""  # 自定义 CSS 类
+
+    # content 格式：
+    #   markdown: str (Markdown 文本)
+    #   stats: list[dict{label: str, value: str|number}]
+    #   iframe: dict{url: str, height: int}
 
 
 # ── UI Schema — schema-driven frontend (no JS bundle required) ────────────────

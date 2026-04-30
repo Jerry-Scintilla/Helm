@@ -12,6 +12,19 @@ from app.models.esi_data import (
 from app.models.user import User
 from app.services.esi_names import enrich_entity_names
 from app.services.sde import enrich_type_names, enrich_type_names_all_locales
+from app.plugins.registry import extension_registry
+from app.plugins.base import CharacterExtensionProvider
+import logging
+
+# 强制设置日志级别，确保 INFO 日志可见
+_logger = logging.getLogger(__name__)
+if not _logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter('%(name)s - %(levelname)s - %(message)s'))
+    _logger.addHandler(_handler)
+    _logger.setLevel(logging.INFO)
+
+logger = _logger
 
 router = APIRouter(prefix="/api/v1/characters", tags=["characters"])
 
@@ -59,6 +72,32 @@ async def get_character(
     current_user: User = Depends(require_permission("character.view")),
 ):
     char = await _get_character_for_user(character_id, current_user, db)
+
+    # 聚合插件扩展数据
+    extensions = []
+    _logger.debug("All registered extension points: %s", extension_registry.list_points())
+    providers = extension_registry.get_all("character.extension")
+    _logger.debug("Found %d providers for character_id=%s", len(providers), char.character_id)
+    for provider in providers:
+        _logger.debug("Provider: %s, is_protocol: %s", provider, isinstance(provider, CharacterExtensionProvider))
+        if isinstance(provider, CharacterExtensionProvider):
+            try:
+                ext = await provider.get_character_extension(char.character_id, db)
+                _logger.debug("Extension result from %s: %s", getattr(provider, '_helm_plugin_name', 'unknown'), ext)
+                if ext and ext.character_id == char.character_id:
+                    extensions.append({
+                        "plugin_name": getattr(provider, "_helm_plugin_name", "unknown"),
+                        "title": ext.title,
+                        "widget": ext.widget,
+                        "content": ext.content,
+                        "order": ext.order,
+                        "css_class": ext.css_class,
+                    })
+            except Exception as e:
+                logger.warning(f"Plugin extension error in {getattr(provider, '_helm_plugin_name', 'unknown')}: {e}", exc_info=True)
+
+    extensions.sort(key=lambda x: x["order"])
+
     return {
         "character_id": char.character_id,
         "character_name": char.character_name,
@@ -66,6 +105,7 @@ async def get_character(
         "alliance_id": char.alliance_id,
         "scopes": char.scopes,
         "updated_at": char.updated_at,
+        "extensions": extensions,
     }
 
 

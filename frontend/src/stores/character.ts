@@ -3,6 +3,17 @@ import { ref } from 'vue'
 import api from '@/api'
 import type { SdeName } from '@/utils/sde'
 
+export type ExtensionWidgetType = 'markdown' | 'stats' | 'iframe'
+
+export interface CharacterExtension {
+  plugin_name: string
+  title: string
+  widget: ExtensionWidgetType
+  content: any  // markdown: string, stats: Array<{label: string, value: any}>, iframe: {url: string, height?: number}
+  order: number
+  css_class: string
+}
+
 export interface CharacterInfo {
   character_id: number
   character_name: string
@@ -10,6 +21,7 @@ export interface CharacterInfo {
   alliance_id: number | null
   scopes: string
   updated_at: string | null
+  extensions?: CharacterExtension[]
 }
 
 export interface WalletInfo {

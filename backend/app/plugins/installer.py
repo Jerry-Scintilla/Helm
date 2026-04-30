@@ -92,7 +92,27 @@ async def run_plugin_migrations(
                     "version_locations",
                     (existing + os.pathsep + vs) if existing else vs,
                 )
+
+            # Snapshot the main branch head revision before plugin migration.
+            # Plugin migrations share the alembic_version table row, so we must restore
+            # the main branch head after the plugin migration completes.
+            from app.core.database import engine
+            from sqlalchemy import text
+
+            sync_engine = engine.sync_engine
+            with sync_engine.connect() as conn:
+                result = conn.execute(text("SELECT version_num FROM alembic_version"))
+                row = result.fetchone()
+                main_revision = row[0] if row else None
+
             alembic_command.upgrade(cfg, f"{plugin_name}@head")
+
+            # Restore main branch revision after plugin migration
+            if main_revision:
+                with sync_engine.connect() as conn:
+                    conn.execute(text("UPDATE alembic_version SET version_num = :rev"), {"rev": main_revision})
+                    conn.commit()
+
             out = buf.getvalue()
             if on_line:
                 for line in out.splitlines():

@@ -88,23 +88,7 @@ const menuOptions = computed<MenuOption[]>(() => {
     })
   }
 
-  if (auth.isSuperuser) {
-    items.push({
-      label: '管理',
-      key: 'admin-group',
-      icon: icon('⚙'),
-      children: [
-        { label: '系统', key: '/admin/system', icon: icon('·') },
-        { label: '用户', key: '/admin/users', icon: icon('·') },
-        { label: '角色权限', key: '/admin/roles', icon: icon('·') },
-        { label: 'SDE', key: '/admin/sde', icon: icon('·') },
-        { label: 'Buckets', key: '/admin/buckets', icon: icon('·') },
-        { label: 'API Token', key: '/admin/tokens', icon: icon('·') },
-        { label: '插件', key: '/admin/plugins', icon: icon('·') },
-      ],
-    })
-  }
-
+  
   // Plugin sidebar items (from enabled plugins that declare sidebar_items in meta)
   const pluginItems = pluginStore.plugins
     .filter(p => p.is_enabled && p.meta?.sidebar_items?.length)
@@ -114,14 +98,7 @@ const menuOptions = computed<MenuOption[]>(() => {
         .sort((a, b) => a.order - b.order)
         .map(s => ({ label: s.label, key: s.route, icon: s.icon ? icon(s.icon) : icon('◦') }))
     )
-  if (pluginItems.length > 0) {
-    items.push({
-      label: '插件',
-      key: 'plugin-group',
-      icon: icon('⬡'),
-      children: pluginItems,
-    })
-  }
+  items.push(...pluginItems)
 
   return items
 })

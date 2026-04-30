@@ -8,6 +8,7 @@ celery_app = Celery(
     backend=settings.celery_result_backend,
     include=[
         "app.tasks.characters.wallet",
+        "app.tasks.characters.info",
         "app.tasks.characters.skills",
         "app.tasks.characters.assets",
         "app.tasks.characters.mail",

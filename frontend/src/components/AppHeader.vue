@@ -26,15 +26,24 @@ async function handleLogout() {
   router.push('/login')
 }
 
-const userMenuOptions = computed(() => {
-  const items: any[] = [{ label: '退出登录', key: 'logout' }]
-  if (auth.isSuperuser) items.unshift({ label: '管理后台', key: 'admin' })
-  return items
-})
+const adminMenuOptions = computed(() => [
+  { label: '系统', key: '/admin/system' },
+  { label: '用户', key: '/admin/users' },
+  { label: '角色权限', key: '/admin/roles' },
+  { label: 'SDE', key: '/admin/sde' },
+  { label: 'Buckets', key: '/admin/buckets' },
+  { label: 'API Token', key: '/admin/tokens' },
+  { label: '插件', key: '/admin/plugins' },
+])
+
+function handleAdminMenu(key: string) {
+  router.push(key)
+}
+
+const userMenuOptions = [{ label: '退出登录', key: 'logout' }]
 
 function handleUserMenu(key: string) {
   if (key === 'logout') handleLogout()
-  else if (key === 'admin') router.push('/admin/system')
 }
 </script>
 
@@ -44,6 +53,16 @@ function handleUserMenu(key: string) {
       <slot name="title" />
     </div>
     <div class="header-right">
+      <!-- Admin menu (superuser only) -->
+      <n-dropdown
+        v-if="auth.isSuperuser"
+        trigger="click"
+        :options="adminMenuOptions"
+        @select="handleAdminMenu"
+      >
+        <button class="icon-btn" title="管理后台">⚙</button>
+      </n-dropdown>
+
       <!-- Character switcher -->
       <n-dropdown
         v-if="characters.length > 1"

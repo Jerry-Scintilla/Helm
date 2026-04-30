@@ -176,7 +176,6 @@ async def _handle_bind(db, state_data, character_id, character_name, token_data,
             character.token_expires_at = token_expires_at
 
     await db.commit()
-    await db.refresh(character)
     _dispatch_initial_sync(character.id)
 
     return {"type": "bind", "character_id": character_id, "character_name": character_name}

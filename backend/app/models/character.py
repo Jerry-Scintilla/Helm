@@ -15,6 +15,8 @@ class Character(Base):
     character_name: Mapped[str] = mapped_column(String(256), nullable=False)
     corporation_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     alliance_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    corporation_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    alliance_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Stored encrypted at rest; rotation handled separately
     access_token: Mapped[str] = mapped_column(Text, nullable=False)
     refresh_token: Mapped[str] = mapped_column(Text, nullable=False)

@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +16,7 @@ from app.services.esi_names import enrich_entity_names
 from app.services.sde import enrich_type_names, enrich_type_names_all_locales
 from app.plugins.registry import extension_registry
 from app.plugins.base import CharacterExtensionProvider
+from app.tasks.celery_app import celery_app
 import logging
 
 # 强制设置日志级别，确保 INFO 日志可见
@@ -44,6 +47,9 @@ async def _get_character_for_user(
     return char
 
 
+REFRESH_TTL = 600  # 10 minutes
+
+
 @router.get("/")
 async def list_characters(
     db: AsyncSession = Depends(get_db),
@@ -53,6 +59,24 @@ async def list_characters(
         select(Character).where(Character.user_id == current_user.id, Character.is_active == True)
     )
     characters = result.scalars().all()
+    now = datetime.now(UTC)
+
+    for c in characters:
+        corp_stale = (
+            c.corporation_updated_at is None
+            or (now - c.corporation_updated_at).total_seconds() > REFRESH_TTL
+        )
+        ally_stale = (
+            c.alliance_updated_at is None
+            or (now - c.alliance_updated_at).total_seconds() > REFRESH_TTL
+        )
+        if corp_stale or ally_stale:
+            celery_app.send_task(
+                "app.tasks.characters.info.update_character_info",
+                args=[c.id],
+                queue="characters",
+            )
+
     return [
         {
             "character_id": c.character_id,

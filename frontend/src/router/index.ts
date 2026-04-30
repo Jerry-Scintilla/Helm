@@ -136,9 +136,10 @@ router.beforeEach(async (to) => {
     await loadPluginRoutes(router)
     usePluginStore().fetchEnabledPlugins()
 
-    // If the target is a plugin path, re-trigger navigation now that the
-    // routes are registered (otherwise the initial guard run would 404).
-    if (to.path.startsWith('/plugins/')) {
+    // If the target route wasn't matched before dynamic routes were registered
+    // (e.g. hard-refresh on /plugins/* or /character/:id/:submoduleSlug),
+    // re-trigger navigation now that the routes exist.
+    if (to.matched.length === 0 || to.path.startsWith('/plugins/')) {
       return to.fullPath
     }
   }

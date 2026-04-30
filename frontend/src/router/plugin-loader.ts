@@ -33,22 +33,33 @@ export async function loadPluginRoutes(router: Router): Promise<void> {
     for (const plugin of res.data) {
       removePluginRoutes(router, plugin.name)
 
-      if (!plugin.frontend_url) continue
+      // Global plugin iframe route (only if plugin has a frontend)
+      if (plugin.frontend_url) {
+        router.addRoute('main', {
+          // Catch-all so the plugin's internal SPA routes don't cause Helm 404s
+          path: `plugins/${plugin.name}/:pathMatch(.*)*`,
+          name: plugin.name,
+          component: () => import('@/views/plugin/PluginIframeView.vue'),
+          meta: {
+            pluginName: plugin.name,
+            frontendUrl: plugin.frontend_url,
+            iframePlugin: true,
+          },
+        })
+        _registeredPlugins.add(plugin.name)
+        console.info(`[PluginLoader] Registered iframe route for "${plugin.name}"`)
+      }
 
-      router.addRoute('main', {
-        // Catch-all so the plugin's internal SPA routes don't cause Helm 404s
-        path: `plugins/${plugin.name}/:pathMatch(.*)*`,
-        name: plugin.name,
-        component: () => import('@/views/plugin/PluginIframeView.vue'),
-        meta: {
-          pluginName: plugin.name,
-          frontendUrl: plugin.frontend_url,
-          iframePlugin: true,
-        },
-      })
-
-      _registeredPlugins.add(plugin.name)
-      console.info(`[PluginLoader] Registered iframe route for "${plugin.name}"`)
+      // Character submodule routes (independent of whether plugin has a global frontend_url)
+      for (const sub of plugin.meta?.character_submodules ?? []) {
+        router.addRoute('main', {
+          path: `character/:id/${sub.slug}`,
+          name: `character-submodule-${plugin.name}-${sub.slug}`,
+          component: () => import('@/views/character/CharacterSubmoduleView.vue'),
+          meta: { pluginName: plugin.name, submoduleSlug: sub.slug, isCharacterSubmodule: true },
+        })
+        console.info(`[PluginLoader] Registered character submodule route "/${sub.slug}" for "${plugin.name}"`)
+      }
     }
   } catch (err) {
     console.warn('[PluginLoader] Failed to load plugin manifest:', err)

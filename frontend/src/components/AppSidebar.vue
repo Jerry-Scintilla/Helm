@@ -34,6 +34,19 @@ const menuOptions = computed<MenuOption[]>(() => {
   ]
 
   if (cid) {
+    const submoduleItems = pluginStore.plugins
+      .filter(p => p.is_enabled && p.meta?.character_submodules?.length)
+      .flatMap(p =>
+        p.meta.character_submodules
+          .slice()
+          .sort((a, b) => a.order - b.order)
+          .map(s => ({
+            label: s.label,
+            key: `/character/${cid}/${s.slug}`,
+            icon: s.icon ? icon(s.icon) : icon('·'),
+          }))
+      )
+
     items.push({
       label: '角色',
       key: 'char-group',
@@ -45,6 +58,7 @@ const menuOptions = computed<MenuOption[]>(() => {
         { label: '资产', key: `/character/${cid}/assets`, icon: icon('·') },
         { label: '邮件', key: `/character/${cid}/mail`, icon: icon('·') },
         { label: '通知', key: `/character/${cid}/notifications`, icon: icon('·') },
+        ...submoduleItems,
       ],
     })
   }

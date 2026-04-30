@@ -66,6 +66,42 @@ class CharacterExtension:
     #   iframe: dict{url: str, height: int}
 
 
+# ── Character Submodule ───────────────────────────────────────────────────────
+
+@dataclass
+class CharacterSubmodule:
+    """插件为角色模块声明的独立子页面。
+
+    注册后前端会在 /character/:id/{slug} 注册路由，并在角色侧边栏显示菜单项。
+    页面内容通过 iframe 渲染，URL 由 iframe_url_template 中的 {character_id} 占位符代入。
+
+    Example:
+        CharacterSubmodule(
+            slug="pap",
+            label="出勤记录",
+            icon="◈",
+            iframe_url_template="http://localhost:5174/character/{character_id}/pap",
+            order=10,
+        )
+    """
+    slug: str                   # URL 片段，全局唯一，不可与内置页面冲突
+    label: str                  # 侧边栏显示名
+    iframe_url_template: str    # 含 {character_id} 占位符的 iframe URL
+    icon: str = ""              # 可选 emoji 图标
+    order: int = 100            # 在角色菜单中的排列顺序
+
+
+@runtime_checkable
+class CharacterSubmoduleProvider(Protocol):
+    """声明插件为角色模块提供子页面的协议接口。
+
+    插件仅需实现 get_character_submodules()，子模块声明会在安装/启用时
+    序列化进 meta_snapshot，前端从 /api/v1/plugins/ 读取，无需运行时调用。
+    """
+
+    def get_character_submodules(self) -> list[CharacterSubmodule]: ...
+
+
 # ── UI Schema — schema-driven frontend (no JS bundle required) ────────────────
 #
 # Plugins declare their UI structure in Python. The host SPA fetches this
@@ -217,6 +253,9 @@ class HelmPlugin(ABC):
         return []
 
     def get_sidebar_items(self) -> list[SidebarItem]:
+        return []
+
+    def get_character_submodules(self) -> list[CharacterSubmodule]:
         return []
 
     # ── iframe-based frontend ─────────────────────────────────────────────────

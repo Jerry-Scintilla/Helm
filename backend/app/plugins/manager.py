@@ -18,7 +18,7 @@ from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
 from app.models.plugin import Plugin
-from app.plugins.base import HelmPlugin, PluginContext
+from app.plugins.base import HelmPlugin, PluginContext, CharacterSubmodule
 from app.plugins.events import publish_event
 from app.plugins.installer import (
     discover_entry_point,
@@ -36,6 +36,30 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _app: "FastAPI | None" = None
+
+_RESERVED_CHARACTER_SLUGS = {"overview", "wallet", "skills", "assets", "mail", "notifications"}
+
+
+def _serialize_character_submodules(plugin_instance: HelmPlugin, plugin_name: str) -> list[dict]:
+    raw = plugin_instance.get_character_submodules()
+    logger.debug(
+        "[plugin:%s] get_character_submodules() returned %d items: %s",
+        plugin_name, len(raw),
+        [{"slug": m.slug, "label": m.label} for m in raw],
+    )
+    result = []
+    for m in raw:
+        if m.slug in _RESERVED_CHARACTER_SLUGS:
+            logger.warning("Plugin '%s' declares reserved character slug '%s', skipped", plugin_name, m.slug)
+            continue
+        result.append({
+            "slug": m.slug,
+            "label": m.label,
+            "icon": m.icon,
+            "order": m.order,
+            "iframe_url_template": m.iframe_url_template,
+        })
+    return result
 
 
 def set_app(app: "FastAPI") -> None:
@@ -220,12 +244,14 @@ async def install_plugin(package_name: str, whl_path: Path | None = None) -> dic
                 {"label": s.label, "route": s.route, "icon": s.icon, "order": s.order}
                 for s in plugin_instance.get_sidebar_items()
             ],
+            "character_submodules": _serialize_character_submodules(plugin_instance, plugin_class.name),
         }
         logger.debug(
-            "[install:%s] meta snapshot — esi_scopes=%s  sidebar_items=%d",
+            "[install:%s] meta snapshot — esi_scopes=%s  sidebar_items=%d  character_submodules=%d",
             package_name,
             meta_snapshot["esi_scopes"],
             len(meta_snapshot["sidebar_items"]),
+            len(meta_snapshot["character_submodules"]),
         )
 
         if existing is None:
@@ -324,6 +350,7 @@ async def enable_plugin(name: str) -> None:
                 {"label": s.label, "route": s.route, "icon": s.icon, "order": s.order}
                 for s in plugin_instance.get_sidebar_items()
             ],
+            "character_submodules": _serialize_character_submodules(plugin_instance, name),
         }
         await db.commit()
 

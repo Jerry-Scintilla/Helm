@@ -2,10 +2,19 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import api from '@/api'
 
+export interface CharacterSubmoduleMeta {
+  slug: string
+  label: string
+  icon: string
+  order: number
+  iframe_url_template: string
+}
+
 export interface PluginMeta {
   esi_scopes: string[]
   sidebar_items: Array<{ label: string; route: string; icon: string; order: number }>
   widgets: Array<{ component: string; title: string; order: number }>
+  character_submodules: CharacterSubmoduleMeta[]
 }
 
 export interface PluginInfo {

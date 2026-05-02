@@ -25,6 +25,7 @@ celery_app = Celery(
         "app.tasks.bucket.scheduler",
         "app.tasks.bucket.runner",
         "app.tasks.esi_cache.refresh",
+        "app.tasks.maintenance",
     ],
 )
 
@@ -118,5 +119,13 @@ celery_app.conf.update(
             "schedule": 60.0,
             "options": {"queue": "bucket"},
         },
+        # Maintenance — daily cleanup of task_runs older than 30 days
+        "cleanup-old-task-runs": {
+            "task": "app.tasks.maintenance.cleanup_task_runs",
+            "schedule": 86400.0,
+        },
     },
 )
+
+# Register Celery signal handlers for task history tracking
+from app.tasks import signals  # noqa: E402, F401

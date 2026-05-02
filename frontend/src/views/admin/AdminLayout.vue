@@ -14,6 +14,7 @@ const tabs = [
   { label: 'Buckets', path: '/admin/buckets' },
   { label: 'API Token', path: '/admin/tokens' },
   { label: '插件', path: '/admin/plugins' },
+  { label: '任务', path: '/admin/tasks' },
 ]
 
 const activeTab = computed(() => route.path)

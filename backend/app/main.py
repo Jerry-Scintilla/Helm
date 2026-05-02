@@ -36,7 +36,7 @@ logging.config.dictConfig({
 })
 from app.core.database import AsyncSessionLocal
 from app.core.permissions import seed_permissions
-from app.routers import auth, characters, admin, corporations, alliances, api_tokens
+from app.routers import auth, characters, admin, admin_tasks, corporations, alliances, api_tokens
 from app.routers.plugins import public_router as plugins_public_router, router as plugins_router
 from app.routers.plugin_ui import router as plugin_ui_router
 from app.plugins.loader import load_plugins
@@ -90,6 +90,7 @@ app.include_router(corporations.router)
 app.include_router(alliances.router)
 app.include_router(api_tokens.router)
 app.include_router(admin.router)
+app.include_router(admin_tasks.router)
 app.include_router(plugins_public_router)
 app.include_router(plugins_router)
 app.include_router(plugin_ui_router, prefix="/plugin-ui")

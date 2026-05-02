@@ -51,15 +51,20 @@ function renderMarkdown(content: string): string {
         />
         <div class="char-meta">
           <h1 class="char-name h-serif">{{ charStore.characterInfo.character_name }}</h1>
-          <div class="meta-row">
-            <span v-if="charStore.characterInfo.corporation_id" class="tag">
+            <div class="meta-row">
+            <span v-if="charStore.characterInfo.corporation_name" class="tag">
+              {{ charStore.characterInfo.corporation_name }}
+            </span>
+            <span v-else-if="charStore.characterInfo.corporation_id" class="tag">
               Corp {{ charStore.characterInfo.corporation_id }}
             </span>
-            <span v-if="charStore.characterInfo.alliance_id" class="tag">
+            <span v-if="charStore.characterInfo.alliance_name" class="tag">
+              {{ charStore.characterInfo.alliance_name }}
+            </span>
+            <span v-else-if="charStore.characterInfo.alliance_id" class="tag">
               Alliance {{ charStore.characterInfo.alliance_id }}
             </span>
-          </div>
-          <div class="updated">更新于 {{ fmtDate(charStore.characterInfo.updated_at) }}</div>
+        </div>
         </div>
       </div>
 

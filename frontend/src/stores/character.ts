@@ -18,7 +18,9 @@ export interface CharacterInfo {
   character_id: number
   character_name: string
   corporation_id: number | null
+  corporation_name: string | null
   alliance_id: number | null
+  alliance_name: string | null
   scopes: string
   updated_at: string | null
   extensions?: CharacterExtension[]

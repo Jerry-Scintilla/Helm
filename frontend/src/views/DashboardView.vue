@@ -8,7 +8,9 @@ interface CharacterSummary {
   character_id: number
   character_name: string
   corporation_id: number | null
+  corporation_name: string | null
   alliance_id: number | null
+  alliance_name: string | null
   is_primary: boolean
 }
 
@@ -93,8 +95,10 @@ async function unbind(char: CharacterSummary) {
               <span v-if="char.is_primary" class="primary-badge">◈ 主角色</span>
             </div>
             <div class="char-meta">
-              <span v-if="char.corporation_id" class="meta-tag">Corp {{ char.corporation_id }}</span>
-              <span v-if="char.alliance_id" class="meta-tag">Alliance {{ char.alliance_id }}</span>
+              <span v-if="char.corporation_name" class="meta-tag">{{ char.corporation_name }}</span>
+              <span v-else-if="char.corporation_id" class="meta-tag">Corp {{ char.corporation_id }}</span>
+              <span v-if="char.alliance_name" class="meta-tag">{{ char.alliance_name }}</span>
+              <span v-else-if="char.alliance_id" class="meta-tag">Alliance {{ char.alliance_id }}</span>
             </div>
           </div>
           <div class="char-arrow">→</div>

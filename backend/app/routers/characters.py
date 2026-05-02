@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -12,7 +13,7 @@ from app.models.esi_data import (
     CharacterWalletJournal, CharacterWalletTransaction, CharacterSkillQueue, CharacterNotification,
 )
 from app.models.user import User
-from app.services.esi_names import enrich_entity_names
+from app.services.esi_names import enrich_entity_names, resolve_entity_names
 from app.services.sde import enrich_type_names, enrich_type_names_all_locales
 from app.plugins.registry import extension_registry
 from app.plugins.base import CharacterExtensionProvider
@@ -71,18 +72,29 @@ async def list_characters(
             or (now - c.alliance_updated_at).total_seconds() > REFRESH_TTL
         )
         if corp_stale or ally_stale:
-            celery_app.send_task(
-                "app.tasks.characters.info.update_character_info",
+            asyncio.create_task(asyncio.to_thread(
+                celery_app.send_task,
+                'app.tasks.characters.info.update_character_info',
                 args=[c.id],
-                queue="characters",
-            )
+                queue='characters',
+            ))
+
+    # Resolve corporation and alliance names via ESI
+    corp_and_alliance_ids = [
+        c.corporation_id for c in characters if c.corporation_id
+    ] + [
+        c.alliance_id for c in characters if c.alliance_id
+    ]
+    name_map = await resolve_entity_names(corp_and_alliance_ids) if corp_and_alliance_ids else {}
 
     return [
         {
             "character_id": c.character_id,
             "character_name": c.character_name,
             "corporation_id": c.corporation_id,
+            "corporation_name": name_map.get(c.corporation_id, {}).get("name") if c.corporation_id else None,
             "alliance_id": c.alliance_id,
+            "alliance_name": name_map.get(c.alliance_id, {}).get("name") if c.alliance_id else None,
             "is_primary": c.is_primary,
         }
         for c in characters
@@ -122,11 +134,16 @@ async def get_character(
 
     extensions.sort(key=lambda x: x["order"])
 
+    corp_and_alliance_ids = [i for i in [char.corporation_id, char.alliance_id] if i]
+    name_map = await resolve_entity_names(corp_and_alliance_ids) if corp_and_alliance_ids else {}
+
     return {
         "character_id": char.character_id,
         "character_name": char.character_name,
         "corporation_id": char.corporation_id,
+        "corporation_name": name_map.get(char.corporation_id, {}).get("name") if char.corporation_id else None,
         "alliance_id": char.alliance_id,
+        "alliance_name": name_map.get(char.alliance_id, {}).get("name") if char.alliance_id else None,
         "scopes": char.scopes,
         "updated_at": char.updated_at,
         "extensions": extensions,

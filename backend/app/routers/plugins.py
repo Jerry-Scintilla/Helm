@@ -1,7 +1,9 @@
+import asyncio
+import logging
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from jose import JWTError
 from pathlib import Path
@@ -19,6 +21,36 @@ from app.plugins.base import HelmPlugin
 from app.plugins.manager import disable_plugin, enable_plugin, install_plugin, uninstall_plugin
 from app.plugins.registry import extension_registry, registry
 from app.schemas.plugin import InstallRequest, InstallResponse, PluginInfo, PluginStatusResponse
+
+
+logger = logging.getLogger(__name__)
+
+# Background-task handles kept alive so the GC doesn't collect them mid-install.
+# (asyncio holds only weak refs to tasks created via create_task.)
+_install_tasks: set[asyncio.Task] = set()
+
+
+def _spawn_install(package_name: str, whl_path=None) -> None:
+    """Fire-and-forget the install coroutine, fully detached from the request.
+
+    Using BackgroundTasks here was the original pattern but it keeps the
+    request's yield-based dependencies (e.g. ``get_db``) open until the
+    background task completes — which pins a DB connection from the pool for
+    the entire duration of pip + migrations.
+    """
+    coro = install_plugin(package_name, whl_path) if whl_path is not None else install_plugin(package_name)
+    task = asyncio.create_task(coro, name=f"install-{package_name}")
+    _install_tasks.add(task)
+
+    def _done(t: asyncio.Task) -> None:
+        _install_tasks.discard(t)
+        if t.cancelled():
+            return
+        exc = t.exception()
+        if exc is not None:
+            logger.exception("install task for %s failed: %s", package_name, exc, exc_info=exc)
+
+    task.add_done_callback(_done)
 
 
 def _compute_frontend_url(plugin: HelmPlugin, name: str) -> str | None:
@@ -122,18 +154,16 @@ async def plugin_events(token: Annotated[str, Query()]):
 @router.post("/install", response_model=InstallResponse)
 async def install_by_name(
     req: InstallRequest,
-    background_tasks: BackgroundTasks,
     _: User = Depends(require_permission("global.plugin_manage")),
 ):
     task_id = str(uuid.uuid4())
-    background_tasks.add_task(install_plugin, req.package_name)
+    _spawn_install(req.package_name)
     return InstallResponse(task_id=task_id, status="installing")
 
 
 @router.post("/install/upload", response_model=InstallResponse)
 async def install_by_upload(
     file: UploadFile,
-    background_tasks: BackgroundTasks,
     _: User = Depends(require_permission("global.plugin_manage")),
 ):
     if not file.filename or not file.filename.endswith(".whl"):
@@ -147,7 +177,7 @@ async def install_by_upload(
 
     package_name = file.filename.split("-")[0].replace("_", "-")
     task_id = str(uuid.uuid4())
-    background_tasks.add_task(install_plugin, package_name, whl_path)
+    _spawn_install(package_name, whl_path)
     return InstallResponse(task_id=task_id, status="installing")
 
 

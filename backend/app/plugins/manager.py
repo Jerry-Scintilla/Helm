@@ -221,7 +221,19 @@ async def install_plugin(package_name: str, whl_path: Path | None = None) -> dic
     elif mig_ok:
         logger.info("[install:%s] step 4/11 — migrations OK:\n%s", package_name, mig_out)
     else:
-        logger.warning("[install:%s] step 4/11 — migrations WARNING:\n%s", package_name, mig_out)
+        # Migration failure leaves the DB in an inconsistent state. We must abort
+        # the install — otherwise we'd register a plugin whose tables don't exist,
+        # mount its router, and then watch every request 500 at query time.
+        err = f"plugin migration failed:\n{mig_out}"
+        logger.error("[install:%s] step 4/11 — migrations FAILED, rolling back:\n%s", package_name, mig_out)
+        # Best-effort: uninstall the wheel we just installed so the user can retry
+        # cleanly after fixing the underlying issue.
+        try:
+            await pip_uninstall(package_name)
+        except Exception as exc:
+            logger.warning("[install:%s] rollback pip uninstall errored (non-blocking): %s", package_name, exc)
+        await publish_event("plugin.install.failed", {"package_name": package_name, "error": err})
+        return {"status": "failed", "error": err}
 
     # 5. (schema-driven frontend — no JS bundle needed)
     logger.info("[install:%s] step 5/11 — skipped (schema-driven frontend, no bundle)", package_name)

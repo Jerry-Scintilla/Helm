@@ -1,31 +1,37 @@
-"""
-pip subprocess wrapper and plugin entry point discovery.
-All functions are async-safe for use inside FastAPI BackgroundTasks.
+"""pip subprocess wrapper, plugin entry point discovery, and isolated migration runner.
 
-Note: asyncio.create_subprocess_exec requires ProactorEventLoop on Windows,
-which uvicorn does not use. All subprocess calls use subprocess.Popen/run
-wrapped in asyncio.to_thread instead — works on all platforms.
+Plugin alembic migrations are executed in a *separate Python subprocess*
+(``app.plugins._migration_runner``). This was a deliberate redesign to avoid:
+
+  * Nested ``asyncio.run()`` inside ``asyncio.to_thread`` — interacted badly
+    with asyncpg + greenlet on Windows and could hang inside a transaction.
+  * Sharing the main app's ``alembic_version`` table between plugins —
+    snapshot/restore tricks corrupted state when more than one plugin existed.
+
+Each plugin now owns ``alembic_version_<plugin_name>`` and migrations run with
+a clean sync psycopg2 engine in a child process. The main app's event loop is
+never touched.
 """
 import asyncio
 import importlib
 import importlib.metadata
-import io
+import importlib.util
 import logging
-import os
 import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from alembic import command as alembic_command
-from alembic.config import Config as AlembicConfig
 from packaging.utils import canonicalize_name
-
-# Path to the main alembic.ini (backend/alembic.ini), fixed relative to this file.
-_ALEMBIC_INI = Path(__file__).parent.parent.parent / "alembic.ini"
 
 logger = logging.getLogger(__name__)
 
+# backend/ root — the cwd we hand to the migration subprocess so it can
+# import `app.plugins._migration_runner` and `app.core.config`.
+_BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+
+
+# ── pip wrappers ─────────────────────────────────────────────────────────────
 
 async def pip_install(
     package: str,
@@ -64,118 +70,79 @@ async def pip_uninstall(package: str) -> tuple[bool, str]:
     return await asyncio.to_thread(_run)
 
 
+# ── Plugin migrations (subprocess-isolated) ──────────────────────────────────
+
+async def _run_migration_subprocess(
+    plugin_name: str,
+    plugin_dir: Path,
+    action: str,
+    on_line: Callable[[str], None] | None = None,
+) -> tuple[bool, str]:
+    """Spawn ``python -m app.plugins._migration_runner`` and stream its output.
+
+    Returns (success, combined_output). Hard timeout 5 min — a single plugin
+    migration that runs longer than that is almost certainly stuck.
+    """
+    versions_dir = plugin_dir / "migrations" / "versions"
+    if not versions_dir.is_dir():
+        return True, "no migrations"
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "app.plugins._migration_runner",
+        plugin_name,
+        str(plugin_dir),
+        action,
+    ]
+
+    def _run() -> tuple[bool, str]:
+        proc = subprocess.Popen(
+            cmd,
+            cwd=str(_BACKEND_DIR),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        output_lines: list[str] = []
+        assert proc.stdout is not None
+        for raw in proc.stdout:
+            line = raw.decode(errors="replace").rstrip()
+            output_lines.append(line)
+            if on_line:
+                on_line(line)
+        try:
+            proc.wait(timeout=300)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            output_lines.append("ERROR: migration subprocess exceeded 300s timeout, killed")
+            return False, "\n".join(output_lines)
+        return proc.returncode == 0, "\n".join(output_lines)
+
+    return await asyncio.to_thread(_run)
+
+
 async def run_plugin_migrations(
     plugin_name: str,
     plugin_dir: Path,
     on_line: Callable[[str], None] | None = None,
 ) -> tuple[bool, str]:
-    """
-    Upgrade a plugin's migration branch to head using the main alembic context (in-process).
-
-    plugin_name must match the branch_labels value in the plugin's first migration file.
-    Runs inside asyncio.to_thread so alembic's internal asyncio.run() gets a fresh loop.
-    """
-    versions_dir = plugin_dir / "migrations" / "versions"
-    if not versions_dir.is_dir():
-        return True, "no migrations"
-
-    def _run() -> tuple[bool, str]:
-        buf = io.StringIO()
-        try:
-            cfg = AlembicConfig(str(_ALEMBIC_INI), stdout=buf)
-            # env.py normally discovers the plugin via entry_points, but inject here
-            # as a fallback in case importlib caches haven't refreshed in this thread.
-            existing = cfg.get_main_option("version_locations") or ""
-            vs = str(versions_dir)
-            if vs not in existing:
-                cfg.set_main_option(
-                    "version_locations",
-                    (existing + os.pathsep + vs) if existing else vs,
-                )
-
-            # Snapshot the main branch head revision before plugin migration.
-            # Plugin migrations share the alembic_version table row, so we must restore
-            # the main branch head after the plugin migration completes.
-            #
-            # engine.sync_engine uses asyncpg which requires a greenlet context — not
-            # available inside asyncio.to_thread. Instead, use asyncio.run() with a
-            # fresh NullPool async engine: this thread has no running event loop, so
-            # asyncio.run() can create one safely without interfering with the main loop.
-            from app.core.config import settings
-            from sqlalchemy import pool as _sa_pool, text
-            from sqlalchemy.ext.asyncio import create_async_engine
-
-            async def _read_revision() -> str | None:
-                _e = create_async_engine(settings.db_url, poolclass=_sa_pool.NullPool)
-                try:
-                    async with _e.connect() as conn:
-                        row = (await conn.execute(text("SELECT version_num FROM alembic_version"))).fetchone()
-                        return row[0] if row else None
-                finally:
-                    await _e.dispose()
-
-            async def _write_revision(rev: str) -> None:
-                _e = create_async_engine(settings.db_url, poolclass=_sa_pool.NullPool)
-                try:
-                    async with _e.begin() as conn:
-                        await conn.execute(text("UPDATE alembic_version SET version_num = :rev"), {"rev": rev})
-                finally:
-                    await _e.dispose()
-
-            main_revision = asyncio.run(_read_revision())
-
-            alembic_command.upgrade(cfg, f"{plugin_name}@head")
-
-            # Restore main branch revision after plugin migration
-            if main_revision:
-                asyncio.run(_write_revision(main_revision))
-
-            out = buf.getvalue()
-            if on_line:
-                for line in out.splitlines():
-                    on_line(line)
-            return True, out or f"upgraded {plugin_name}@head"
-        except Exception as exc:
-            out = buf.getvalue()
-            logger.error("Plugin migration failed for '%s': %s", plugin_name, exc, exc_info=True)
-            return False, (f"{out}\n{exc}" if out else str(exc))
-
-    return await asyncio.to_thread(_run)
+    """Apply a plugin's migrations to head in an isolated subprocess."""
+    return await _run_migration_subprocess(plugin_name, plugin_dir, "upgrade", on_line)
 
 
 async def run_plugin_downgrade(
     plugin_name: str,
     plugin_dir: Path,
+    on_line: Callable[[str], None] | None = None,
 ) -> tuple[bool, str]:
-    """
-    Downgrade a plugin's migration branch to base (removes all its tables).
+    """Downgrade a plugin's migrations to base (drops its tables) in an isolated subprocess.
+
     Must be called before pip_uninstall while the package is still importable.
     """
-    versions_dir = plugin_dir / "migrations" / "versions"
-    if not versions_dir.is_dir():
-        return True, "no migrations"
+    return await _run_migration_subprocess(plugin_name, plugin_dir, "downgrade", on_line)
 
-    def _run() -> tuple[bool, str]:
-        buf = io.StringIO()
-        try:
-            cfg = AlembicConfig(str(_ALEMBIC_INI), stdout=buf)
-            existing = cfg.get_main_option("version_locations") or ""
-            vs = str(versions_dir)
-            if vs not in existing:
-                cfg.set_main_option(
-                    "version_locations",
-                    (existing + os.pathsep + vs) if existing else vs,
-                )
-            alembic_command.downgrade(cfg, f"{plugin_name}@base")
-            out = buf.getvalue()
-            return True, out or f"downgraded {plugin_name}@base"
-        except Exception as exc:
-            out = buf.getvalue()
-            logger.error("Plugin downgrade failed for '%s': %s", plugin_name, exc, exc_info=True)
-            return False, (f"{out}\n{exc}" if out else str(exc))
 
-    return await asyncio.to_thread(_run)
-
+# ── Entry point discovery ────────────────────────────────────────────────────
 
 def discover_entry_point(package_name: str) -> tuple[str, Path] | None:
     """

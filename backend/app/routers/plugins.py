@@ -25,9 +25,31 @@ from app.schemas.plugin import InstallRequest, InstallResponse, PluginInfo, Plug
 
 logger = logging.getLogger(__name__)
 
-# Background-task handles kept alive so the GC doesn't collect them mid-install.
+# Background-task handles kept alive so the GC doesn't collect them mid-run.
 # (asyncio holds only weak refs to tasks created via create_task.)
 _install_tasks: set[asyncio.Task] = set()
+_uninstall_tasks: set[asyncio.Task] = set()
+
+
+def _spawn_uninstall(name: str) -> None:
+    """Fire-and-forget the uninstall coroutine, fully detached from the request.
+
+    Mirroring _spawn_install: awaiting uninstall_plugin() in the handler would
+    pin a DB connection for the entire pip + migration duration, exhausting the
+    pool and stalling all other requests.
+    """
+    task = asyncio.create_task(uninstall_plugin(name), name=f"uninstall-{name}")
+    _uninstall_tasks.add(task)
+
+    def _done(t: asyncio.Task) -> None:
+        _uninstall_tasks.discard(t)
+        if t.cancelled():
+            return
+        exc = t.exception()
+        if exc is not None:
+            logger.exception("uninstall task for %s failed: %s", name, exc, exc_info=exc)
+
+    task.add_done_callback(_done)
 
 
 def _spawn_install(package_name: str, whl_path=None) -> None:
@@ -205,7 +227,7 @@ async def uninstall(
     name: str,
     _: User = Depends(require_permission("global.plugin_manage")),
 ):
-    await uninstall_plugin(name)
+    _spawn_uninstall(name)
 
 
 @router.get("/{name}/status", response_model=PluginStatusResponse)

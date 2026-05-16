@@ -71,12 +71,17 @@ function openUninstall(name: string) {
   showUninstall.value = true
 }
 
+watch(() => store.uninstallInProgress, (cur, prev) => {
+  if (prev && !cur && showUninstall.value) {
+    showUninstall.value = false
+    message.success(`插件 ${uninstallTarget.value} 已卸载`)
+  }
+})
+
 async function confirmUninstall() {
   uninstalling.value = true
   try {
     await store.uninstallPlugin(uninstallTarget.value)
-    message.success(`插件 ${uninstallTarget.value} 已卸载`)
-    showUninstall.value = false
   } catch {
     message.error('卸载失败')
   } finally {

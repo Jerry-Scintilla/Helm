@@ -414,39 +414,50 @@ async def uninstall_plugin(name: str) -> None:
     if registry.is_loaded(name):
         await disable_plugin(name)
 
+    # Snapshot what we need from the DB, then close the session immediately.
+    # The migration subprocess and pip uninstall can take minutes — holding a
+    # DB connection open for that long exhausts the pool and blocks all other
+    # requests that need a DB connection.
     async with AsyncSessionLocal() as db:
         db_plugin = (await db.execute(
             select(Plugin).where(Plugin.name == name)
         )).scalar_one_or_none()
         if db_plugin is None:
             return
+        package_name = db_plugin.package_name
+        entry_point = db_plugin.entry_point
 
-        # 1. on_uninstall hook — must run while package is still importable
-        try:
-            plugin_class = load_plugin_class(db_plugin.entry_point)
-            plugin_class().on_uninstall(_make_context())
-        except Exception as exc:
-            logger.warning("on_uninstall hook error for '%s': %s", name, exc)
+    # 1. on_uninstall hook — must run while package is still importable
+    try:
+        plugin_class = load_plugin_class(entry_point)
+        plugin_class().on_uninstall(_make_context())
+    except Exception as exc:
+        logger.warning("on_uninstall hook error for '%s': %s", name, exc)
 
-        # 2. Downgrade migrations — must run while package is still importable
-        try:
-            ep_result = discover_entry_point(db_plugin.package_name)
-            if ep_result is not None:
-                _ep_str, plugin_dir = ep_result
-                mig_ok, mig_out = await run_plugin_downgrade(name, plugin_dir)
-                if not mig_ok:
-                    logger.warning("[uninstall:%s] downgrade failed (non-blocking): %s", name, mig_out)
-        except Exception as exc:
-            logger.warning("[uninstall:%s] downgrade error (non-blocking): %s", name, exc)
+    # 2. Downgrade migrations — must run while package is still importable
+    try:
+        ep_result = discover_entry_point(package_name)
+        if ep_result is not None:
+            _ep_str, plugin_dir = ep_result
+            mig_ok, mig_out = await run_plugin_downgrade(name, plugin_dir)
+            if not mig_ok:
+                logger.warning("[uninstall:%s] downgrade failed (non-blocking): %s", name, mig_out)
+    except Exception as exc:
+        logger.warning("[uninstall:%s] downgrade error (non-blocking): %s", name, exc)
 
-        # 3. pip uninstall
-        ok, out = await pip_uninstall(db_plugin.package_name)
-        if not ok:
-            logger.warning("pip uninstall failed for '%s': %s", name, out)
+    # 3. pip uninstall
+    ok, out = await pip_uninstall(package_name)
+    if not ok:
+        logger.warning("pip uninstall failed for '%s': %s", name, out)
 
-        # 4. Delete DB record
-        await db.delete(db_plugin)
-        await db.commit()
-        logger.info("Deleted plugin record '%s' from database", name)
+    # 4. Delete DB record in its own short-lived session
+    async with AsyncSessionLocal() as db:
+        db_plugin = (await db.execute(
+            select(Plugin).where(Plugin.name == name)
+        )).scalar_one_or_none()
+        if db_plugin is not None:
+            await db.delete(db_plugin)
+            await db.commit()
+            logger.info("Deleted plugin record '%s' from database", name)
 
     await publish_event("plugin.uninstalled", {"name": name})

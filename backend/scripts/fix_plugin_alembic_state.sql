@@ -1,4 +1,5 @@
--- One-time recovery for the plugin-migration refactor.
+
+*-- One-time recovery for the plugin-migration refactor.
 --
 -- The old installer mixed plugin branch heads into the main `alembic_version`
 -- table and then tried to "restore" the main head with a destructive UPDATE.

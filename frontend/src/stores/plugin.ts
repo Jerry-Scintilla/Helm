@@ -40,6 +40,7 @@ export const usePluginStore = defineStore('plugin', () => {
   const installLog = ref<string[]>([])
   const installing = ref(false)
   const installSucceeded = ref(false)
+  const uninstallInProgress = ref(false)
 
   let _sse: EventSource | null = null
 
@@ -81,8 +82,13 @@ export const usePluginStore = defineStore('plugin', () => {
   }
 
   async function uninstallPlugin(name: string) {
-    await api.delete(`/api/v1/admin/plugins/${name}`)
-    await fetchPlugins()
+    uninstallInProgress.value = true
+    try {
+      await api.delete(`/api/v1/admin/plugins/${name}`)
+    } catch (e) {
+      uninstallInProgress.value = false
+      throw e
+    }
   }
 
   function startSSE() {
@@ -99,11 +105,10 @@ export const usePluginStore = defineStore('plugin', () => {
           installing.value = false
           installSucceeded.value = true
           fetchPlugins()
-        } else if (
-          ev.type === 'plugin.enabled' ||
-          ev.type === 'plugin.disabled' ||
-          ev.type === 'plugin.uninstalled'
-        ) {
+        } else if (ev.type === 'plugin.uninstalled') {
+          uninstallInProgress.value = false
+          fetchPlugins()
+        } else if (ev.type === 'plugin.enabled' || ev.type === 'plugin.disabled') {
           fetchPlugins()
         } else if (ev.type === 'plugin.installing') {
           installing.value = true
@@ -133,6 +138,7 @@ export const usePluginStore = defineStore('plugin', () => {
     installLog,
     installing,
     installSucceeded,
+    uninstallInProgress,
     fetchPlugins,
     fetchEnabledPlugins,
     installByName,

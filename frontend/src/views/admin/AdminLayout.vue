@@ -15,6 +15,7 @@ const tabs = [
   { label: 'API Token', path: '/admin/tokens' },
   { label: '插件', path: '/admin/plugins' },
   { label: '任务', path: '/admin/tasks' },
+  { label: '市场', path: '/admin/market' },
 ]
 
 const activeTab = computed(() => route.path)

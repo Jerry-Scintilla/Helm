@@ -104,6 +104,7 @@ const router = createRouter({
             { path: 'tokens', name: 'admin-tokens', component: () => import('@/views/admin/ApiTokensView.vue') },
             { path: 'plugins', name: 'admin-plugins', component: () => import('@/views/admin/PluginsView.vue') },
             { path: 'tasks', name: 'admin-tasks', component: () => import('@/views/admin/TasksView.vue') },
+            { path: 'market', name: 'admin-market', component: () => import('@/views/admin/MarketView.vue') },
           ],
         },
       ],

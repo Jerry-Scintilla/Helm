@@ -30,5 +30,8 @@ class Settings(BaseSettings):
     sde_upload_dir: str = "data/sde/uploads"
     sde_import_timeout: int = 600  # 10 minutes
 
+    market_default_region_id: int = 10000002  # The Forge (Jita)
+    market_price_ttl: int = 3600              # seconds
+
 
 settings = Settings()

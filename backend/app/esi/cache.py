@@ -145,6 +145,8 @@ async def release_refresh_lock(key: str) -> None:
 
 
 TTL_CONFIG: dict[str, int] = {
+    "/markets/{id}/orders/": 300,
+    "/markets/prices/": 3600,
     "/characters/{id}/affiliation/": 7200,
     "/characters/{id}/": 600,
     "/characters/{id}/skills/": 7200,

@@ -65,8 +65,8 @@ Helm is built on a principle of **权衡与搭配** — letting you weigh and co
 
 | Plugin | Description | Author |
 |--------|-------------|--------|
-| [fleet-action](https://github.com/Jerry-Scicintilla/fleet-action) | Fleet PAP (attendance) management with manual record issuance | Jerry_Scintilla |
-| [helm-mcp](https://github.com/Jerry-Scicintilla/helm-plugin-MCP) | Model Context Protocol server exposing Helm to LLMs | Jerry_Scintilla |
+| [fleet-action](https://github.com/Jerry-Scintilla/helm-plugin-fleet-action) | Fleet PAP (attendance) management with manual record issuance | Jerry_Scintilla |
+| [helm-mcp](https://github.com/Jerry-Scintilla/helm-plugin-MCP) | Model Context Protocol server exposing Helm to LLMs | Jerry_Scintilla |
 
 ---
 
@@ -225,7 +225,7 @@ See [LICENSE](LICENSE) for the full license text.
 
 ## Links
 
-- [Helm Documentation](Markdown/)
+- [Helm Documentation](https://jerry-scintilla.github.io/Helm-docs/)
 - [Plugin Development Guide](Markdown/Plugin_Dev_Guide/)
 - [EVE Developers Portal](https://developers.eveonline.com)
 - [ESI Swagger UI](https://esi.evetech.net/ui/)

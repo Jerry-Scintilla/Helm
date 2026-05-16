@@ -96,22 +96,39 @@ async def run_plugin_migrations(
             # Snapshot the main branch head revision before plugin migration.
             # Plugin migrations share the alembic_version table row, so we must restore
             # the main branch head after the plugin migration completes.
-            from app.core.database import engine
-            from sqlalchemy import text
+            #
+            # engine.sync_engine uses asyncpg which requires a greenlet context — not
+            # available inside asyncio.to_thread. Instead, use asyncio.run() with a
+            # fresh NullPool async engine: this thread has no running event loop, so
+            # asyncio.run() can create one safely without interfering with the main loop.
+            from app.core.config import settings
+            from sqlalchemy import pool as _sa_pool, text
+            from sqlalchemy.ext.asyncio import create_async_engine
 
-            sync_engine = engine.sync_engine
-            with sync_engine.connect() as conn:
-                result = conn.execute(text("SELECT version_num FROM alembic_version"))
-                row = result.fetchone()
-                main_revision = row[0] if row else None
+            async def _read_revision() -> str | None:
+                _e = create_async_engine(settings.db_url, poolclass=_sa_pool.NullPool)
+                try:
+                    async with _e.connect() as conn:
+                        row = (await conn.execute(text("SELECT version_num FROM alembic_version"))).fetchone()
+                        return row[0] if row else None
+                finally:
+                    await _e.dispose()
+
+            async def _write_revision(rev: str) -> None:
+                _e = create_async_engine(settings.db_url, poolclass=_sa_pool.NullPool)
+                try:
+                    async with _e.begin() as conn:
+                        await conn.execute(text("UPDATE alembic_version SET version_num = :rev"), {"rev": rev})
+                finally:
+                    await _e.dispose()
+
+            main_revision = asyncio.run(_read_revision())
 
             alembic_command.upgrade(cfg, f"{plugin_name}@head")
 
             # Restore main branch revision after plugin migration
             if main_revision:
-                with sync_engine.connect() as conn:
-                    conn.execute(text("UPDATE alembic_version SET version_num = :rev"), {"rev": main_revision})
-                    conn.commit()
+                asyncio.run(_write_revision(main_revision))
 
             out = buf.getvalue()
             if on_line:

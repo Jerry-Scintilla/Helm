@@ -34,6 +34,8 @@ const adminMenuOptions = computed(() => [
   { label: 'Buckets', key: '/admin/buckets' },
   { label: 'API Token', key: '/admin/tokens' },
   { label: '插件', key: '/admin/plugins' },
+  { label: '任务', key: '/admin/tasks' },
+  { label: '市场', key: '/admin/market' },
 ])
 
 function handleAdminMenu(key: string) {

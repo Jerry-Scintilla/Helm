@@ -174,24 +174,49 @@ async def get_skills(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("character.view")),
 ):
+    from app.models.sde import SDEType, SDEGroup
     char = await _get_character_for_user(character_id, current_user, db)
-    result = await db.execute(
-        select(CharacterSkill).where(CharacterSkill.character_id == char.id)
-    )
-    skills = result.scalars().all()
-    skill_rows = [
-        {
-            "skill_id": s.skill_id,
-            "trained_skill_level": s.trained_skill_level,
-            "skillpoints_in_skill": s.skillpoints_in_skill,
-        }
-        for s in skills
-    ]
-    await enrich_type_names_all_locales(skill_rows, id_field="skill_id", name_field="skill_name", db=db)
+
+    rows = (await db.execute(
+        select(
+            CharacterSkill.skill_id,
+            CharacterSkill.trained_skill_level,
+            CharacterSkill.skillpoints_in_skill,
+            CharacterSkill.updated_at,
+            SDEType.name.label("skill_name"),
+            SDEType.group_id,
+            SDEGroup.name.label("group_name"),
+        )
+        .join(SDEType, SDEType.type_id == CharacterSkill.skill_id, isouter=True)
+        .join(SDEGroup, SDEGroup.group_id == SDEType.group_id, isouter=True)
+        .where(CharacterSkill.character_id == char.id)
+        .order_by(SDEGroup.name["en"].as_string(), SDEType.name["en"].as_string())
+    )).all()
+
+    total_sp = sum(r.skillpoints_in_skill for r in rows)
+    updated_at = rows[0].updated_at if rows else None
+
+    # 按 group_id 分组
+    groups: dict[int, dict] = {}
+    for r in rows:
+        gid = r.group_id or 0
+        if gid not in groups:
+            groups[gid] = {
+                "group_id": gid,
+                "group_name": r.group_name,
+                "skills": [],
+            }
+        groups[gid]["skills"].append({
+            "skill_id": r.skill_id,
+            "skill_name": r.skill_name,
+            "trained_skill_level": r.trained_skill_level,
+            "skillpoints_in_skill": r.skillpoints_in_skill,
+        })
+
     return {
-        "total_sp": sum(s.skillpoints_in_skill for s in skills),
-        "skills": skill_rows,
-        "updated_at": skills[0].updated_at if skills else None,
+        "total_sp": total_sp,
+        "groups": list(groups.values()),
+        "updated_at": updated_at,
     }
 
 

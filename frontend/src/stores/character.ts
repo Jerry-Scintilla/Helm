@@ -38,9 +38,15 @@ export interface SkillEntry {
   skill_name?: SdeName | null
 }
 
+export interface SkillGroup {
+  group_id: number
+  group_name: SdeName | null
+  skills: SkillEntry[]
+}
+
 export interface SkillsInfo {
   total_sp: number
-  skills: SkillEntry[]
+  groups: SkillGroup[]
   updated_at: string | null
 }
 

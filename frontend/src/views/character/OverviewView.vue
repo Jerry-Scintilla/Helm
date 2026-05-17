@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCharacterStore } from '@/stores/character'
+import { usePortraitStore } from '@/stores/portrait'
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -9,10 +10,15 @@ import DOMPurify from 'dompurify'
 const route = useRoute()
 const router = useRouter()
 const charStore = useCharacterStore()
+const portraitStore = usePortraitStore()
 const { t } = useI18n()
 const characterId = Number(route.params.id)
+const portraitUrl = computed(() => portraitStore.getUrl(characterId, 128))
 
-onMounted(() => charStore.fetchAll(characterId))
+onMounted(() => {
+  charStore.fetchAll(characterId)
+  portraitStore.fetchPortrait(characterId)
+})
 
 function fmt(n: number | null, suffix = '') {
   if (n === null) return '—'
@@ -43,7 +49,7 @@ function renderMarkdown(content: string): string {
       <!-- Character header -->
       <div class="char-header">
         <img
-          :src="`https://images.evetech.net/characters/${characterId}/portrait?size=128`"
+          :src="portraitUrl"
           class="portrait"
           :alt="charStore.characterInfo.character_name"
         />

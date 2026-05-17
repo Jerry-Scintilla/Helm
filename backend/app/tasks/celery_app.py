@@ -23,6 +23,7 @@ celery_app = Celery(
         "app.tasks.corporations.assets",
         "app.tasks.alliances.info",
         "app.tasks.sde.import_sde",
+        "app.tasks.sde.refresh_icon_cache",
         "app.tasks.bucket.scheduler",
         "app.tasks.bucket.runner",
         "app.tasks.esi_cache.refresh",

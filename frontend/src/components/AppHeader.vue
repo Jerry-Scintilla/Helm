@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
+import { usePortraitStore } from '@/stores/portrait'
 import api from '@/api'
 
 const router = useRouter()
 const auth = useAuthStore()
 const localeStore = useLocaleStore()
+const portraitStore = usePortraitStore()
 const { t } = useI18n()
 
 interface Character {
@@ -23,6 +25,11 @@ onMounted(async () => {
     const res = await api.get('/api/v1/characters/')
     characters.value = res.data
   } catch {}
+  if (auth.characterId) portraitStore.fetchPortrait(auth.characterId)
+})
+
+watch(() => auth.characterId, (id) => {
+  if (id) portraitStore.fetchPortrait(id)
 })
 
 async function handleLogout() {
@@ -96,7 +103,7 @@ function handleLangSelect(key: string) {
         <div class="char-pill">
           <img
             v-if="auth.characterId"
-            :src="`https://images.evetech.net/characters/${auth.characterId}/portrait?size=32`"
+            :src="portraitStore.getUrl(auth.characterId!, 32)"
             class="char-avatar"
             alt=""
           />
@@ -108,7 +115,7 @@ function handleLangSelect(key: string) {
       <div v-else class="char-pill no-cursor">
         <img
           v-if="auth.characterId"
-          :src="`https://images.evetech.net/characters/${auth.characterId}/portrait?size=32`"
+          :src="portraitStore.getUrl(auth.characterId, 32)"
           class="char-avatar"
           alt=""
         />

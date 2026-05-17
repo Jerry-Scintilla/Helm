@@ -16,7 +16,7 @@ from app.models.esi_data import (
 )
 from app.models.user import User
 from app.services.esi_names import enrich_entity_names, resolve_entity_names
-from app.services.sde import enrich_type_names, enrich_type_names_all_locales
+from app.services.sde import enrich_type_icons, enrich_type_names, enrich_type_names_all_locales
 from app.plugins.registry import extension_registry
 from app.plugins.base import CharacterExtensionProvider
 from app.tasks.celery_app import celery_app
@@ -152,6 +152,19 @@ async def get_character(
     }
 
 
+@router.get("/{character_id}/portrait")
+async def get_portrait(
+    character_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("character.view")),
+):
+    from app.esi.client import get_esi_client
+    await _get_character_for_user(character_id, current_user, db)
+    esi = get_esi_client()
+    data = await esi.get(f"/characters/{character_id}/portrait/")
+    return data or {}
+
+
 @router.get("/{character_id}/wallet")
 async def get_wallet(
     character_id: int,
@@ -248,6 +261,7 @@ async def get_assets(
     ]
 
     await enrich_type_names_all_locales(asset_rows, id_field="type_id", name_field="type_name", db=db)
+    await enrich_type_icons(asset_rows, id_field="type_id", icon_field="icon_url", db=db)
 
     # Build lookup: item_id -> row
     by_item_id = {row["item_id"]: row for row in asset_rows}
@@ -263,6 +277,7 @@ async def get_assets(
             "item_id": row["item_id"],
             "type_id": row["type_id"],
             "type_name": row.get("type_name"),
+            "icon_url": row.get("icon_url"),
             "quantity": row["quantity"],
             "is_singleton": row["is_singleton"],
             "items": [build_node(c) for c in children_map.get(row["item_id"], [])],

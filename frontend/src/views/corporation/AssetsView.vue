@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { h, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCorporationStore } from '@/stores/corporation'
 import { useI18n } from 'vue-i18n'
@@ -26,7 +26,19 @@ async function load() {
 }
 
 const cols: DataTableColumns<CorporationAsset> = [
-  { title: () => t('common.item'), key: 'type_id', ellipsis: true, render: r => resolveSdeName(r.type_name, String(r.type_id)) },
+  {
+    title: () => t('common.item'),
+    key: 'type_id',
+    ellipsis: true,
+    render: (r) => {
+      const name = resolveSdeName(r.type_name, String(r.type_id))
+      if (!r.icon_url) return name
+      return h('span', { style: 'display:flex;align-items:center;gap:6px;' }, [
+        h('img', { src: r.icon_url, width: 24, height: 24, alt: '', loading: 'lazy', style: 'border-radius:2px;flex-shrink:0;', onError: (e: Event) => { (e.target as HTMLImageElement).style.display = 'none' } }),
+        name,
+      ])
+    },
+  },
   { title: 'Location ID', key: 'location_id', width: 120 },
   { title: () => t('common.status'), key: 'location_type', width: 120 },
   { title: () => t('common.quantity'), key: 'quantity', width: 80, align: 'right' },

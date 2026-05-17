@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import api from '@/api'
 import { useAuthStore } from '@/stores/auth'
+import { usePortraitStore } from '@/stores/portrait'
 
 interface CharacterSummary {
   character_id: number
@@ -17,6 +18,7 @@ interface CharacterSummary {
 
 const router = useRouter()
 const auth = useAuthStore()
+const portraitStore = usePortraitStore()
 const { t } = useI18n()
 const characters = ref<CharacterSummary[]>([])
 const loading = ref(true)
@@ -25,6 +27,7 @@ async function loadCharacters() {
   try {
     const res = await api.get('/api/v1/characters/')
     characters.value = res.data
+    characters.value.forEach(c => portraitStore.fetchPortrait(c.character_id))
   } catch {
     // ignore
   }
@@ -86,7 +89,7 @@ async function unbind(char: CharacterSummary) {
         <div class="char-main" @click="goCharacter(char.character_id)">
           <div class="char-portrait-wrap">
             <img
-              :src="`https://images.evetech.net/characters/${char.character_id}/portrait?size=128`"
+              :src="portraitStore.getUrl(char.character_id, 128)"
               :alt="char.character_name"
               class="char-portrait"
             />

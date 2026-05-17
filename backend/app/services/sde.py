@@ -1,8 +1,12 @@
 """SDE type info lookup utilities with multi-language support."""
+import asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.esi.cache import acquire_refresh_lock, get_cached, set_cached
 from app.models.sde import SDEType
+
+_ICON_TTL = 86400  # 24h logical TTL for type icon cache entries
 
 
 async def resolve_type_names(
@@ -127,4 +131,94 @@ async def enrich_type_names_all_locales(
     for row in rows:
         type_id = row.get(id_field)
         row[name_field] = name_map.get(type_id) if type_id is not None else None
+    return rows
+
+
+def _icon_url(type_id: int) -> str:
+    return f"https://images.evetech.net/types/{type_id}/icon?size=32"
+
+
+async def resolve_type_icons_cached(
+    type_ids: list[int],
+    db: AsyncSession,
+) -> dict[int, str | None]:
+    """
+    Return {type_id: icon_url} using Redis logical expiration cache.
+
+    Cache miss  → batch query SDE DB, populate cache, return URLs.
+    Fresh hit   → return cached URL immediately.
+    Stale hit   → return cached URL immediately, trigger background Celery refresh.
+    Unknown IDs (not in SDE) → mapped to None, not cached.
+    """
+    if not type_ids:
+        return {}
+
+    unique_ids = list(set(type_ids))
+    result: dict[int, str | None] = {}
+    missing: list[int] = []
+    stale: list[int] = []
+
+    for type_id in unique_ids:
+        entry = await get_cached(f"sde:type_icons:{type_id}")
+        if entry is None:
+            missing.append(type_id)
+        elif entry.is_stale:
+            result[type_id] = entry.data.get("icon_url")
+            stale.append(type_id)
+        else:
+            result[type_id] = entry.data.get("icon_url")
+
+    if missing:
+        rows = await db.execute(
+            select(SDEType.type_id).where(SDEType.type_id.in_(missing))
+        )
+        found_ids = {row[0] for row in rows.fetchall()}
+        for type_id in missing:
+            if type_id in found_ids:
+                url = _icon_url(type_id)
+                await set_cached(f"sde:type_icons:{type_id}", {"icon_url": url}, ttl=_ICON_TTL)
+                result[type_id] = url
+            else:
+                result[type_id] = None
+
+    for type_id in stale:
+        if await acquire_refresh_lock(f"sde:type_icons:{type_id}"):
+            asyncio.create_task(asyncio.to_thread(
+                _dispatch_icon_refresh, type_id
+            ))
+
+    return result
+
+
+def _dispatch_icon_refresh(type_id: int) -> None:
+    from app.tasks.celery_app import celery_app
+    celery_app.send_task(
+        "app.tasks.sde.refresh_icon_cache.refresh_type_icon_cache",
+        kwargs={"type_id": type_id},
+    )
+
+
+async def enrich_type_icons(
+    rows: list[dict],
+    id_field: str = "type_id",
+    icon_field: str = "icon_url",
+    db: AsyncSession | None = None,
+) -> list[dict]:
+    """
+    Enrich row dicts with icon_url from the cached icon service.
+    Mirrors enrich_type_names_all_locales in structure.
+    """
+    if not rows or db is None:
+        for row in rows:
+            row[icon_field] = None
+        return rows
+
+    ids = [r[id_field] for r in rows if r.get(id_field) is not None]
+    if not ids:
+        return rows
+
+    icon_map = await resolve_type_icons_cached(ids, db)
+    for row in rows:
+        type_id = row.get(id_field)
+        row[icon_field] = icon_map.get(type_id) if type_id is not None else None
     return rows

@@ -7,7 +7,7 @@ from app.core.permissions import require_permission
 from app.models.character import Character
 from app.models.corporation import Corporation, CorporationAsset, CorporationMember, CorporationWallet, CorporationWalletJournal
 from app.models.user import User
-from app.services.sde import enrich_type_names_all_locales
+from app.services.sde import enrich_type_icons, enrich_type_names_all_locales
 from app.tasks.utils import DIRECTOR_SCOPE
 
 router = APIRouter(prefix="/api/v1/corporations", tags=["corporations"])
@@ -217,4 +217,5 @@ async def get_corporation_assets(
         for a in assets
     ]
     await enrich_type_names_all_locales(asset_rows, id_field="type_id", name_field="type_name", db=db)
+    await enrich_type_icons(asset_rows, id_field="type_id", icon_field="icon_url", db=db)
     return asset_rows

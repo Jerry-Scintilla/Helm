@@ -8,6 +8,7 @@ export interface AssetNode {
   item_id: number
   type_id: number
   type_name?: SdeName | null
+  icon_url?: string | null
   quantity: number
   is_singleton: boolean
   items: AssetNode[]
@@ -47,6 +48,7 @@ const depth = props.depth ?? 0
           @click="toggle(node.item_id)"
         >
           <span class="container-name">
+            <img v-if="node.icon_url" :src="node.icon_url" class="type-icon" width="24" height="24" alt="" loading="lazy" @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')" />
             {{ resolveSdeName(node.type_name, String(node.type_id)) }}
           </span>
           <span class="container-meta">
@@ -61,7 +63,10 @@ const depth = props.depth ?? 0
 
       <!-- Leaf item -->
       <div v-else class="asset-row" :class="`indent-${Math.min(depth, 4)}`">
-        <span class="type-name">{{ resolveSdeName(node.type_name, String(node.type_id)) }}</span>
+        <span class="type-name">
+          <img v-if="node.icon_url" :src="node.icon_url" class="type-icon" width="24" height="24" alt="" loading="lazy" />
+          {{ resolveSdeName(node.type_name, String(node.type_id)) }}
+        </span>
         <span class="qty">{{ node.is_singleton ? '1' : node.quantity }}</span>
       </div>
 
@@ -91,8 +96,20 @@ const depth = props.depth ?? 0
 .asset-row.indent-3 { padding-left: 60px; }
 .asset-row.indent-4 { padding-left: 76px; }
 
+/* Item icon */
+.type-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
 /* Leaf text */
 .type-name {
+  display: flex;
+  align-items: center;
   color: #faf9f5;
 }
 .qty {
@@ -110,6 +127,8 @@ const depth = props.depth ?? 0
   background: rgba(255, 255, 255, 0.03);
 }
 .container-name {
+  display: flex;
+  align-items: center;
   color: #d97757; /* Coral Accent */
 }
 .container-meta {

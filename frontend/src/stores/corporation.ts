@@ -45,6 +45,7 @@ export interface CorporationAsset {
   item_id: number
   type_id: number
   type_name?: SdeName | null
+  icon_url?: string | null
   location_id: number
   location_type: string
   quantity: number

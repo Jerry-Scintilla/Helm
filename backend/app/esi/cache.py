@@ -1,4 +1,5 @@
 import json
+import re
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -6,6 +7,11 @@ from typing import Any
 import redis.asyncio as aioredis
 
 from app.core.redis import get_pool
+
+# Keys matching these patterns are stored with logical expiry only — no Redis physical TTL.
+_NO_PHYSICAL_TTL_PATTERNS: list[re.Pattern] = [
+    re.compile(r"^/characters/\d+/portrait/"),
+]
 
 
 def _get_client() -> aioredis.Redis:
@@ -60,9 +66,9 @@ async def set_cached(key: str, data: Any, ttl: int, etag: str | None = None) -> 
             "ttl": str(ttl),
         }
         await client.hset(f"esi:cache:{key}", mapping=mapping)
-        # Physical expiry as safety net: 2x TTL or at least 1 day
-        physical_ttl = max(ttl * 2, 86400)
-        await client.expire(f"esi:cache:{key}", physical_ttl)
+        if not any(p.match(key) for p in _NO_PHYSICAL_TTL_PATTERNS):
+            physical_ttl = max(ttl * 2, 86400)
+            await client.expire(f"esi:cache:{key}", physical_ttl)
     finally:
         await client.aclose()
 
@@ -156,6 +162,7 @@ TTL_CONFIG: dict[str, int] = {
     "/characters/{id}/wallet/transactions/": 1800,
     "/characters/{id}/wallet/journal/": 1800,
     "/characters/{id}/mail/": 900,
+    "/characters/{id}/portrait/": 3600,
     "/characters/{id}/notifications/": 900,
     "/characters/{id}/contracts/": 3600,
     "/corporations/{id}/": 7200,

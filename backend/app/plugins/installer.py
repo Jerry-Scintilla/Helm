@@ -174,5 +174,11 @@ def discover_entry_point(package_name: str) -> tuple[str, Path] | None:
 def load_plugin_class(entry_point: str):
     """Import and return the plugin class from 'module.path:ClassName'."""
     module_path, class_name = entry_point.rsplit(":", 1)
+    top_level = module_path.split(".")[0]
+    stale = [k for k in sys.modules if k == top_level or k.startswith(top_level + ".")]
+    for k in stale:
+        del sys.modules[k]
+    if stale:
+        logger.debug("Purged %d stale sys.modules entries for '%s'", len(stale), top_level)
     module = importlib.import_module(module_path)
     return getattr(module, class_name)

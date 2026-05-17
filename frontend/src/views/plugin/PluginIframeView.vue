@@ -11,12 +11,24 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { usePluginStore } from '@/stores/plugin'
+import { useLocaleStore } from '@/stores/locale'
 
 const route = useRoute()
 const router = useRouter()
+const pluginStore = usePluginStore()
+const localeStore = useLocaleStore()
 const iframeRef = ref<HTMLIFrameElement>()
 
-const iframeSrc = computed(() => route.meta.frontendUrl as string)
+const iframeSrc = computed(() => {
+  const base = route.meta.frontendUrl as string
+  const pluginName = route.meta.pluginName as string | undefined
+  const token = pluginName ? pluginStore.pluginCacheTokens[pluginName] : undefined
+  const lang = localeStore.locale
+  const sep = base.includes('?') ? '&' : '?'
+  const vParam = token ? `_v=${token}&` : ''
+  return `${base}${sep}${vParam}lang=${lang}`
+})
 const apiBase = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
 function sendInit() {
@@ -26,6 +38,7 @@ function sendInit() {
       payload: {
         token: localStorage.getItem('access_token'),
         apiBase,
+        locale: localeStore.locale,
       },
     },
     '*',

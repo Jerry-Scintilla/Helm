@@ -19,7 +19,6 @@ const logContainer = ref<HTMLElement | null>(null)
 // Uninstall confirm modal
 const showUninstall = ref(false)
 const uninstallTarget = ref('')
-const uninstalling = ref(false)
 
 onMounted(async () => {
   store.startSSE()
@@ -81,13 +80,10 @@ watch(() => store.uninstallInProgress, (cur, prev) => {
 })
 
 async function confirmUninstall() {
-  uninstalling.value = true
   try {
     await store.uninstallPlugin(uninstallTarget.value)
   } catch {
     message.error(t('admin.plugins.uninstallFailed'))
-  } finally {
-    uninstalling.value = false
   }
 }
 
@@ -212,12 +208,19 @@ function scrollLog() {
     </n-modal>
 
     <!-- Uninstall confirm modal -->
-    <n-modal v-model:show="showUninstall" preset="card" :title="t('admin.plugins.confirmUninstall')" style="width:400px;max-width:95vw">
+    <n-modal
+      v-model:show="showUninstall"
+      preset="card"
+      :title="t('admin.plugins.confirmUninstall')"
+      style="width:400px;max-width:95vw"
+      :mask-closable="!store.uninstallInProgress"
+      :close-on-esc="!store.uninstallInProgress"
+    >
       <p class="confirm-text" v-html="t('admin.plugins.uninstallWarning', { name: `<strong>${uninstallTarget}</strong>` })" />
       <template #footer>
         <div style="display:flex;justify-content:flex-end;gap:8px">
-          <n-button @click="showUninstall = false">{{ t('common.cancel') }}</n-button>
-          <n-button type="error" :loading="uninstalling" @click="confirmUninstall">{{ t('admin.plugins.confirmUninstallBtn') }}</n-button>
+          <n-button :disabled="store.uninstallInProgress" @click="showUninstall = false">{{ t('common.cancel') }}</n-button>
+          <n-button type="error" :loading="store.uninstallInProgress" @click="confirmUninstall">{{ t('admin.plugins.confirmUninstallBtn') }}</n-button>
         </div>
       </template>
     </n-modal>

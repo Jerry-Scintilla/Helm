@@ -2,10 +2,11 @@
   var HelmSDK = {
     _token: null,
     _apiBase: null,
+    _locale: null,
 
     /**
      * Initialize the SDK. Call this once when the plugin page loads.
-     * onReady(ctx) is called with { token, apiBase } when Helm sends the init payload.
+     * onReady(ctx) is called with { token, apiBase, locale } when Helm sends the init payload.
      */
     init: function (onReady) {
       window.addEventListener('message', function (event) {
@@ -15,6 +16,7 @@
         if (data.type === 'helm:init') {
           HelmSDK._token = data.payload.token
           HelmSDK._apiBase = data.payload.apiBase
+          HelmSDK._locale = data.payload.locale || null
           if (typeof onReady === 'function') onReady(data.payload)
         }
 
@@ -35,6 +37,16 @@
     /** Returns the API base URL, e.g. "http://localhost:8000". */
     getApiBase: function () {
       return HelmSDK._apiBase
+    },
+
+    /**
+     * Returns the current UI locale ('zh' or 'en').
+     * Priority: helm:init payload → URL ?lang= param → default 'zh'.
+     */
+    getLocale: function () {
+      return HelmSDK._locale ||
+        new URLSearchParams(window.location.search).get('lang') ||
+        'zh'
     },
 
     /**

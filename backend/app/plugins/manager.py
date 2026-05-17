@@ -306,7 +306,12 @@ async def install_plugin(package_name: str, whl_path: Path | None = None) -> dic
         logger.info("[install:%s] step 8/11 — DB commit OK", package_name)
 
     # 9. Register in runtime registry and mount router
+    # If the plugin was already loaded (reinstall without prior uninstall), remove
+    # the old routes first so the new router doesn't get shadowed by stale entries.
     logger.info("[install:%s] step 9/11 — register runtime registry + mount router", package_name)
+    if registry.is_loaded(plugin_class.name):
+        _unmount_router(plugin_class.name)
+        registry.unregister(plugin_class.name)
     registry.register(plugin_instance)
     _mount_router(plugin_instance)
     _register_celery_tasks(plugin_instance)

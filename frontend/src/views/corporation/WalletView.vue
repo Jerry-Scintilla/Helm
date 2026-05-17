@@ -8,7 +8,12 @@ import type { CorporationJournalEntry } from '@/stores/corporation'
 
 const route = useRoute()
 const corpStore = useCorporationStore()
-const { t } = useI18n()
+const { t, te } = useI18n()
+
+function refTypeLabel(type: string): string {
+  const key = `wallet.refTypes.${type}`
+  return te(key) ? t(key) : type
+}
 const corporationId = Number(route.params.id)
 const loading = ref(true)
 const selectedDivision = ref<number>(1)
@@ -45,7 +50,7 @@ const selectedWallet = computed(() =>
 
 const journalCols: DataTableColumns<CorporationJournalEntry> = [
   { title: () => t('wallet.colDate'), key: 'date', width: 160, render: r => fmtDate(r.date) },
-  { title: () => t('wallet.colType'), key: 'ref_type', ellipsis: true },
+  { title: () => t('wallet.colType'), key: 'ref_type', ellipsis: true, render: r => refTypeLabel(r.ref_type) },
   { title: () => t('wallet.colDesc'), key: 'description', ellipsis: true },
   {
     title: () => t('wallet.colAmount'), key: 'amount', width: 140, align: 'right',

@@ -23,6 +23,7 @@ CORE_SCOPES = [
     "esi-assets.read_assets.v1",
     "esi-mail.read_mail.v1",
     "esi-characters.read_notifications.v1",
+    "esi-universe.read_structures.v1",
 ]
 
 

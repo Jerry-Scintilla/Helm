@@ -1,9 +1,10 @@
 from contextlib import asynccontextmanager
 import logging
 import logging.config
+import time
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -63,6 +64,12 @@ async def lifespan(app: FastAPI):
     async with AsyncSessionLocal() as db:
         await seed_permissions(db)
     await _ensure_default_bucket()
+    # 预热 Redis 连接池，避免首次请求时建立连接的延迟
+    from app.core.redis import get_pool
+    import redis.asyncio as aioredis
+    _r = aioredis.Redis(connection_pool=get_pool())
+    await _r.ping()
+    await _r.aclose()
     logger.debug("calling load_plugins")
     await load_plugins(app)
     logger.debug("lifespan startup complete")
@@ -85,6 +92,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def log_slow_requests(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    ms = (time.perf_counter() - start) * 1000
+    if ms > 2000:
+        logger.warning("SLOW %s %s %d %.1fms", request.method, request.url.path, response.status_code, ms)
+    return response
 
 app.include_router(auth.router)
 app.include_router(characters.router)

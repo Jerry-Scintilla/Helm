@@ -16,6 +16,7 @@ celery_app = Celery(
         "app.tasks.characters.wallet_transactions",
         "app.tasks.characters.skill_queue",
         "app.tasks.characters.notifications",
+        "app.tasks.characters.structures",
         "app.tasks.corporations.info",
         "app.tasks.corporations.members",
         "app.tasks.corporations.wallet",

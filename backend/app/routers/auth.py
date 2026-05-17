@@ -1,3 +1,4 @@
+import asyncio
 import json
 import secrets
 from datetime import UTC, datetime, timedelta
@@ -40,6 +41,10 @@ def _dispatch_initial_sync(character_db_id: int) -> None:
         "app.tasks.characters.wallet_transactions.update_wallet_transactions",
     ):
         celery_app.send_task(task_name, args=[character_db_id], queue=queue)
+
+
+async def _dispatch_initial_sync_async(character_db_id: int) -> None:
+    await asyncio.to_thread(_dispatch_initial_sync, character_db_id)
 
 
 def _redis() -> aioredis.Redis:
@@ -176,7 +181,7 @@ async def _handle_bind(db, state_data, character_id, character_name, token_data,
             character.token_expires_at = token_expires_at
 
     await db.commit()
-    _dispatch_initial_sync(character.id)
+    asyncio.create_task(_dispatch_initial_sync_async(character.id))
 
     return {"type": "bind", "character_id": character_id, "character_name": character_name}
 
@@ -239,7 +244,7 @@ async def _handle_login(db, character_id, character_name, token_data, scopes, to
     db.add(db_refresh)
     await db.commit()
 
-    _dispatch_initial_sync(character.id)
+    asyncio.create_task(_dispatch_initial_sync_async(character.id))
 
     return {
         "access_token": access_token,

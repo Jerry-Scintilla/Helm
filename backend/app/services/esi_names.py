@@ -1,66 +1,101 @@
-"""Bulk entity name resolution via ESI /universe/names/."""
+"""Bulk entity name resolution via ESI /universe/names/ with Redis-backed cache."""
+import asyncio
+import json
 import logging
 import time
 
 import httpx
+import redis.asyncio as aioredis
+
+from app.core.redis import get_pool
 
 logger = logging.getLogger(__name__)
+
 ESI_NAMES_URL = "https://esi.evetech.net/latest/universe/names/"
-_CACHE_TTL = 3600  # 1 hour
-
-# id -> (name, category, expire_monotonic)
-_cache: dict[int, tuple[str, str, float]] = {}
-
-# sender_type values that ESI /universe/names/ cannot resolve
-_SKIP_CATEGORIES = {"other"}
+_KEY_PREFIX = "esi:name:"
+_LOGICAL_TTL = 86400   # 24h — 逻辑过期，超出后返回旧值并触发后台刷新
+_HARD_TTL = 172800     # 48h — Redis key 真实 TTL，兜底防止永不淘汰
 
 
-def _evict_expired() -> None:
-    now = time.monotonic()
-    expired = [k for k, v in _cache.items() if v[2] < now]
-    for k in expired:
-        del _cache[k]
+def _redis() -> aioredis.Redis:
+    return aioredis.Redis(connection_pool=get_pool())
+
+
+async def _fetch_from_esi(ids: list[int]) -> dict[int, dict]:
+    result: dict[int, dict] = {}
+    chunks = [ids[i : i + 1000] for i in range(0, len(ids), 1000)]
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        for chunk in chunks:
+            try:
+                resp = await client.post(ESI_NAMES_URL, json=chunk)
+                if resp.status_code == 200:
+                    for item in resp.json():
+                        result[item["id"]] = {"name": item["name"], "category": item["category"]}
+            except Exception as exc:
+                logger.warning("ESI /universe/names/ request failed: %s", exc)
+    return result
+
+
+async def _refresh_ids(ids: list[int]) -> None:
+    """后台任务：重新从 ESI 拉取并更新 Redis 缓存。"""
+    fetched = await _fetch_from_esi(ids)
+    if not fetched:
+        return
+    now = time.time()
+    r = _redis()
+    pipe = r.pipeline()
+    for eid, data in fetched.items():
+        payload = json.dumps({
+            "name": data["name"],
+            "category": data["category"],
+            "expire_at": now + _LOGICAL_TTL,
+        })
+        pipe.set(f"{_KEY_PREFIX}{eid}", payload, ex=_HARD_TTL)
+    await pipe.execute()
+    await r.aclose()
 
 
 async def resolve_entity_names(ids: list[int | None]) -> dict[int, dict]:
     """
-    Resolve entity IDs to {"name": str, "category": str} via ESI /universe/names/.
+    批量解析 entity ID → {name, category}。
 
-    Accepts a flat list that may contain None values (they are filtered out).
-    Uses an in-memory TTL cache to avoid redundant ESI calls.
-    Missing or unresolvable IDs are omitted from the returned dict.
+    缓存策略（Redis）：
+    - 命中且未逻辑过期 → 直接返回
+    - 命中但逻辑已过期 → 立即返回旧数据，后台异步刷新
+    - 未命中            → 同步请求 ESI，写入缓存后返回
     """
     valid_ids = list({i for i in ids if i is not None and i > 0})
     if not valid_ids:
         return {}
 
-    _evict_expired()
-    now = time.monotonic()
-    missing = [i for i in valid_ids if i not in _cache]
+    r = _redis()
+    now = time.time()
+    result: dict[int, dict] = {}
+    stale_ids: list[int] = []
+    miss_ids: list[int] = []
 
-    if missing:
-        # ESI accepts up to 1000 IDs per request
-        chunks = [missing[i: i + 1000] for i in range(0, len(missing), 1000)]
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            for chunk in chunks:
-                try:
-                    resp = await client.post(ESI_NAMES_URL, json=chunk)
-                    if resp.status_code == 200:
-                        for item in resp.json():
-                            _cache[item["id"]] = (
-                                item["name"],
-                                item["category"],
-                                now + _CACHE_TTL,
-                            )
-                    # 404 means ESI couldn't find some IDs — skip silently
-                except Exception as exc:
-                    logger.warning("ESI /universe/names/ request failed: %s", exc)
+    keys = [f"{_KEY_PREFIX}{i}" for i in valid_ids]
+    values = await r.mget(keys)
+    await r.aclose()
 
-    return {
-        i: {"name": _cache[i][0], "category": _cache[i][1]}
-        for i in valid_ids
-        if i in _cache
-    }
+    for eid, raw in zip(valid_ids, values):
+        if raw is None:
+            miss_ids.append(eid)
+            continue
+        data = json.loads(raw)
+        result[eid] = {"name": data["name"], "category": data["category"]}
+        if data["expire_at"] < now:
+            stale_ids.append(eid)
+
+    if stale_ids:
+        asyncio.create_task(_refresh_ids(stale_ids))
+
+    if miss_ids:
+        for eid in miss_ids:
+            result[eid] = {"name": "正在初始化数据，请稍后再试", "category": "unknown"}
+        asyncio.create_task(_refresh_ids(miss_ids))
+
+    return result
 
 
 async def enrich_entity_names(
@@ -71,16 +106,6 @@ async def enrich_entity_names(
     skip_types: set[str] | None = None,
     type_field: str | None = None,
 ) -> None:
-    """
-    Enrich rows in-place with a resolved entity name field.
-
-    Args:
-        rows: List of dicts to enrich.
-        id_field: Key holding the entity ID.
-        name_field: Key to write the resolved name string into.
-        skip_types: If type_field is given, skip rows whose type_field value is in this set.
-        type_field: Optional key holding the entity type (e.g. "sender_type").
-    """
     ids = []
     for row in rows:
         eid = row.get(id_field)

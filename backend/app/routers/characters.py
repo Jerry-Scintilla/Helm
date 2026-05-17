@@ -1,4 +1,5 @@
 import asyncio
+from collections import defaultdict
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -11,6 +12,7 @@ from app.models.character import Character
 from app.models.esi_data import (
     CharacterAsset, CharacterMail, CharacterSkill, CharacterWallet,
     CharacterWalletJournal, CharacterWalletTransaction, CharacterSkillQueue, CharacterNotification,
+    PlayerStructure,
 )
 from app.models.user import User
 from app.services.esi_names import enrich_entity_names, resolve_entity_names
@@ -196,10 +198,14 @@ async def get_skills(
 @router.get("/{character_id}/assets")
 async def get_assets(
     character_id: int,
+    q: str | None = Query(None, description="按地点名称搜索（模糊匹配）"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("character.view")),
 ):
     char = await _get_character_for_user(character_id, current_user, db)
+
     result = await db.execute(
         select(CharacterAsset).where(CharacterAsset.character_id == char.id)
     )
@@ -211,16 +217,102 @@ async def get_assets(
             "location_id": a.location_id,
             "location_type": a.location_type,
             "quantity": a.quantity,
+            "is_singleton": a.is_singleton,
         }
         for a in assets
     ]
+
     await enrich_type_names_all_locales(asset_rows, id_field="type_id", name_field="type_name", db=db)
-    # Resolve location names for solar_system and station entries via ESI
-    resolvable = [r for r in asset_rows if r["location_type"] in ("solar_system", "station")]
-    await enrich_entity_names(resolvable, id_field="location_id", name_field="location_name")
+
+    # Build lookup: item_id -> row
+    by_item_id = {row["item_id"]: row for row in asset_rows}
+
+    # Build children map: parent_item_id -> [child rows]
+    children_map: dict[int, list] = defaultdict(list)
     for row in asset_rows:
-        row.setdefault("location_name", None)
-    return asset_rows
+        if row["location_type"] == "item":
+            children_map[row["location_id"]].append(row)
+
+    def build_node(row: dict) -> dict:
+        return {
+            "item_id": row["item_id"],
+            "type_id": row["type_id"],
+            "type_name": row.get("type_name"),
+            "quantity": row["quantity"],
+            "is_singleton": row["is_singleton"],
+            "items": [build_node(c) for c in children_map.get(row["item_id"], [])],
+        }
+
+    # Group root items (directly in station/solar_system/other) by location_id
+    location_groups: dict[int, dict] = {}
+    for row in asset_rows:
+        if row["location_type"] in ("station", "solar_system", "other"):
+            loc_id = row["location_id"]
+            if loc_id not in location_groups:
+                location_groups[loc_id] = {"location_type": row["location_type"], "items": []}
+            location_groups[loc_id]["items"].append(build_node(row))
+
+    # Orphaned: location_type=="item" but parent not in this character's assets.
+    # Typically items in corp-owned Upwell structures (the structure is a corp asset,
+    # absent from the character's personal asset list).
+    orphaned_by_parent: dict[int, list] = defaultdict(list)
+    for row in asset_rows:
+        if row["location_type"] == "item" and row["location_id"] not in by_item_id:
+            orphaned_by_parent[row["location_id"]].append(build_node(row))
+
+    # Resolve NPC station / solar_system names via ESI /universe/names/
+    name_ids = [lid for lid, info in location_groups.items() if info["location_type"] in ("station", "solar_system")]
+    name_map = await resolve_entity_names(name_ids) if name_ids else {}
+
+    result_tree = [
+        {
+            "location_id": loc_id,
+            "location_type": info["location_type"],
+            "location_name": name_map.get(loc_id, {}).get("name"),
+            "items": info["items"],
+        }
+        for loc_id, info in location_groups.items()
+    ]
+
+    # Player structure names: read DB cache; queue Celery task for uncached IDs.
+    if orphaned_by_parent:
+        structure_ids = list(orphaned_by_parent.keys())
+        cached_result = await db.execute(
+            select(PlayerStructure).where(PlayerStructure.structure_id.in_(structure_ids))
+        )
+        cached_map: dict[int, str | None] = {r.structure_id: r.name for r in cached_result.scalars()}
+
+        unknown_ids = [sid for sid in structure_ids if sid not in cached_map or cached_map[sid] is None]
+        if unknown_ids:
+            asyncio.create_task(asyncio.to_thread(
+                celery_app.send_task,
+                "app.tasks.characters.structures.resolve_player_structures",
+                kwargs={"structure_ids": unknown_ids, "character_db_id": char.id},
+            ))
+
+        for structure_id, children in orphaned_by_parent.items():
+            name = cached_map.get(structure_id)
+            result_tree.append({
+                "location_id": structure_id,
+                "location_type": "station",
+                "location_name": name or f"玩家建筑 #{structure_id}",
+                "items": children,
+            })
+
+    # 按地点名称过滤
+    if q:
+        q_lower = q.strip().lower()
+        result_tree = [
+            loc for loc in result_tree
+            if q_lower in (loc["location_name"] or "").lower()
+            or q_lower in str(loc["location_id"])
+        ]
+
+    total = len(result_tree)
+    start = (page - 1) * page_size
+    paginated = result_tree[start : start + page_size]
+
+    return {"total": total, "page": page, "page_size": page_size, "locations": paginated}
 
 
 @router.get("/{character_id}/mail")

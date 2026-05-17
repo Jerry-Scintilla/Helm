@@ -140,4 +140,13 @@ class CharacterNotification(Base):
     character: Mapped["Character"] = relationship("Character", back_populates="notifications")
 
 
+class PlayerStructure(Base):
+    """Cache for player-owned Upwell structure names resolved via ESI."""
+    __tablename__ = "player_structures"
+
+    structure_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 from app.models.character import Character  # noqa: E402, F401

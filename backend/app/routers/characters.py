@@ -3,7 +3,7 @@ from collections import defaultdict
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -16,7 +16,8 @@ from app.models.esi_data import (
 )
 from app.models.user import User
 from app.services.esi_names import enrich_entity_names, resolve_entity_names
-from app.services.sde import enrich_type_icons, enrich_type_names, enrich_type_names_all_locales
+from app.services.notifications import extract_notification_ids, render_notification_text
+from app.services.sde import enrich_type_icons, enrich_type_names, enrich_type_names_all_locales, resolve_type_names
 from app.plugins.registry import extension_registry
 from app.plugins.base import CharacterExtensionProvider
 from app.tasks.celery_app import celery_app
@@ -520,19 +521,30 @@ async def get_skill_queue(
 @router.get("/{character_id}/notifications")
 async def get_notifications(
     character_id: int,
-    unread_only: bool = Query(False),
+    notification_type: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("character.view")),
 ):
     char = await _get_character_for_user(character_id, current_user, db)
+
+    base_where = [CharacterNotification.character_id == char.id]
+    if notification_type:
+        base_where.append(CharacterNotification.type == notification_type)
+
+    total_result = await db.execute(
+        select(func.count()).select_from(CharacterNotification).where(*base_where)
+    )
+    total = total_result.scalar_one()
+
     stmt = (
         select(CharacterNotification)
-        .where(CharacterNotification.character_id == char.id)
+        .where(*base_where)
         .order_by(CharacterNotification.timestamp.desc())
-        .limit(50)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
-    if unread_only:
-        stmt = stmt.where(CharacterNotification.is_read == False)
     result = await db.execute(stmt)
     notifications = result.scalars().all()
     notif_rows = [
@@ -555,7 +567,24 @@ async def get_notifications(
         skip_types={"other"},
         type_field="sender_type",
     )
-    return notif_rows
+
+    # Collect IDs from notification text bodies for inline resolution
+    all_entity_ids: list[int] = []
+    all_type_ids: list[int] = []
+    for row in notif_rows:
+        ent_ids, tp_ids = extract_notification_ids(row.get("text") or "")
+        all_entity_ids.extend(ent_ids)
+        all_type_ids.extend(tp_ids)
+
+    entity_name_map = await resolve_entity_names(list(set(all_entity_ids))) if all_entity_ids else {}
+    type_name_map = await resolve_type_names(list(set(all_type_ids)), db) if all_type_ids else {}
+
+    for row in notif_rows:
+        row["rendered_text"] = render_notification_text(
+            row.get("text") or "", entity_name_map, type_name_map
+        )
+
+    return {"items": notif_rows, "total": total, "page": page, "page_size": page_size}
 
 
 @router.post("/{character_id}/set-primary")

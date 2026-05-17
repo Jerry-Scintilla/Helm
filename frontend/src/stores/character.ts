@@ -107,6 +107,7 @@ export interface Notification {
   timestamp: string | null
   is_read: boolean
   text: string
+  rendered_text?: string
 }
 
 export const useCharacterStore = defineStore('character', () => {
@@ -119,6 +120,7 @@ export const useCharacterStore = defineStore('character', () => {
   const mails = ref<MailItem[]>([])
   const selectedMail = ref<MailDetail | null>(null)
   const notifications = ref<Notification[]>([])
+  const notificationTotal = ref(0)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -166,15 +168,23 @@ export const useCharacterStore = defineStore('character', () => {
     selectedMail.value = res.data
   }
 
-  async function fetchNotifications(characterId: number, unreadOnly = false) {
-    const res = await api.get(`/api/v1/characters/${characterId}/notifications`, { params: { unread_only: unreadOnly } })
-    notifications.value = res.data
+  async function fetchNotifications(
+    characterId: number,
+    page = 1,
+    pageSize = 20,
+    notificationType: string | null = null,
+  ) {
+    const params: Record<string, unknown> = { page, page_size: pageSize }
+    if (notificationType) params.notification_type = notificationType
+    const res = await api.get(`/api/v1/characters/${characterId}/notifications`, { params })
+    notifications.value = res.data.items
+    notificationTotal.value = res.data.total
   }
 
   return {
     characterInfo, wallet, skills,
     walletJournal, walletTransactions, skillQueue,
-    mails, selectedMail, notifications,
+    mails, selectedMail, notifications, notificationTotal,
     loading, error,
     fetchAll, fetchWalletJournal, fetchWalletTransactions,
     fetchSkillQueue, fetchMails, fetchMailBody, fetchNotifications,

@@ -55,6 +55,23 @@ function handleAdminMenu(key: string) {
 
 const userMenuOptions = computed(() => [{ label: t('header.logout'), key: 'logout' }])
 
+const charMenuOptions = computed(() => [
+  ...characters.value.map(c => ({ label: c.character_name, key: String(c.character_id) })),
+  { type: 'divider', key: 'd1' },
+  { label: t('dashboard.addCharacter'), key: '__bind__' },
+])
+
+async function handleCharMenu(key: string) {
+  if (key === '__bind__') {
+    try {
+      const url = await auth.bindCharacter()
+      window.location.href = url
+    } catch {}
+  } else {
+    router.push(`/character/${key}/overview`)
+  }
+}
+
 function handleUserMenu(key: string) {
   if (key === 'logout') handleLogout()
 }
@@ -94,12 +111,7 @@ function handleLangSelect(key: string) {
       </n-dropdown>
 
       <!-- Character switcher -->
-      <n-dropdown
-        v-if="characters.length > 1"
-        trigger="click"
-        :options="characters.map(c => ({ label: c.character_name, key: c.character_id }))"
-        @select="(k: number) => router.push(`/character/${k}/overview`)"
-      >
+      <n-dropdown trigger="click" :options="charMenuOptions" @select="handleCharMenu">
         <div class="char-pill">
           <img
             v-if="auth.characterId"
@@ -111,16 +123,6 @@ function handleLangSelect(key: string) {
           <span class="caret">▾</span>
         </div>
       </n-dropdown>
-
-      <div v-else class="char-pill no-cursor">
-        <img
-          v-if="auth.characterId"
-          :src="portraitStore.getUrl(auth.characterId, 32)"
-          class="char-avatar"
-          alt=""
-        />
-        <span class="char-name">{{ auth.characterName }}</span>
-      </div>
 
       <!-- User menu -->
       <n-dropdown trigger="click" :options="userMenuOptions" @select="handleUserMenu">

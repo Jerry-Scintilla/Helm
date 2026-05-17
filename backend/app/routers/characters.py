@@ -90,6 +90,14 @@ async def list_characters(
     ]
     name_map = await resolve_entity_names(corp_and_alliance_ids) if corp_and_alliance_ids else {}
 
+    # Batch fetch wallet balances (CharacterWallet.character_id is internal Character.id)
+    internal_ids = [c.id for c in characters]
+    wallet_result = await db.execute(
+        select(CharacterWallet.character_id, CharacterWallet.balance)
+        .where(CharacterWallet.character_id.in_(internal_ids))
+    )
+    wallet_map: dict[int, float | None] = {row.character_id: row.balance for row in wallet_result}
+
     return [
         {
             "character_id": c.character_id,
@@ -99,6 +107,7 @@ async def list_characters(
             "alliance_id": c.alliance_id,
             "alliance_name": name_map.get(c.alliance_id, {}).get("name") if c.alliance_id else None,
             "is_primary": c.is_primary,
+            "wallet_balance": wallet_map.get(c.id),
         }
         for c in characters
     ]

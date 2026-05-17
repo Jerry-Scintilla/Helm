@@ -65,7 +65,11 @@
     "bindCharacter": "Bind EVE Character",
     "primaryBadge": "◈ Primary",
     "setPrimary": "Set as Primary",
-    "unbind": "Unbind"
+    "unbind": "Unbind",
+    "totalCharacters": "Characters",
+    "totalISK": "Total Assets",
+    "expandChars": "Show Characters",
+    "collapseChars": "Hide Characters"
   },
   "header": {
     "adminTitle": "Admin Panel",

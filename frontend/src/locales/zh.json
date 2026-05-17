@@ -65,7 +65,11 @@
     "bindCharacter": "绑定 EVE 角色",
     "primaryBadge": "◈ 主角色",
     "setPrimary": "设为主角色",
-    "unbind": "解绑"
+    "unbind": "解绑",
+    "totalCharacters": "绑定角色",
+    "totalISK": "总资产",
+    "expandChars": "展开角色列表",
+    "collapseChars": "收起角色列表"
   },
   "header": {
     "adminTitle": "管理后台",

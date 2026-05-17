@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import api from '@/api'
@@ -14,6 +14,7 @@ interface CharacterSummary {
   alliance_id: number | null
   alliance_name: string | null
   is_primary: boolean
+  wallet_balance: number | null
 }
 
 const router = useRouter()
@@ -22,6 +23,18 @@ const portraitStore = usePortraitStore()
 const { t } = useI18n()
 const characters = ref<CharacterSummary[]>([])
 const loading = ref(true)
+const showChars = ref(false)
+
+const totalISK = computed(() =>
+  characters.value.reduce((sum, c) => sum + (c.wallet_balance ?? 0), 0)
+)
+
+function fmtISK(n: number) {
+  if (n >= 1e12) return (n / 1e12).toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' T'
+  if (n >= 1e9) return (n / 1e9).toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' B'
+  if (n >= 1e6) return (n / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' M'
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 })
+}
 
 async function loadCharacters() {
   try {
@@ -72,61 +85,87 @@ async function unbind(char: CharacterSummary) {
 
     <n-spin v-if="loading" :size="24" class="spinner" />
 
-    <div v-else-if="characters.length === 0" class="empty-state">
-      <div class="empty-icon">◈</div>
-      <p class="empty-title">{{ t('dashboard.noCharacters') }}</p>
-      <p class="empty-sub">{{ t('dashboard.noCharactersSub') }}</p>
-      <n-button type="primary" style="margin-top:16px" @click="addCharacter">{{ t('dashboard.bindCharacter') }}</n-button>
-    </div>
+    <template v-else-if="characters.length === 0">
+      <div class="empty-state">
+        <div class="empty-icon">◈</div>
+        <p class="empty-title">{{ t('dashboard.noCharacters') }}</p>
+        <p class="empty-sub">{{ t('dashboard.noCharactersSub') }}</p>
+        <n-button type="primary" style="margin-top:16px" @click="addCharacter">{{ t('dashboard.bindCharacter') }}</n-button>
+      </div>
+    </template>
 
-    <div v-else class="character-grid">
-      <div
-        v-for="char in characters"
-        :key="char.character_id"
-        class="char-card"
-        :class="{ 'char-card--primary': char.is_primary }"
-      >
-        <div class="char-main" @click="goCharacter(char.character_id)">
-          <div class="char-portrait-wrap">
-            <img
-              :src="portraitStore.getUrl(char.character_id, 128)"
-              :alt="char.character_name"
-              class="char-portrait"
-            />
-          </div>
-          <div class="char-info">
-            <div class="char-name-row">
-              <span class="char-name">{{ char.character_name }}</span>
-              <span v-if="char.is_primary" class="primary-badge">{{ t('dashboard.primaryBadge') }}</span>
-            </div>
-            <div class="char-meta">
-              <span v-if="char.corporation_name" class="meta-tag">{{ char.corporation_name }}</span>
-              <span v-else-if="char.corporation_id" class="meta-tag">Corp {{ char.corporation_id }}</span>
-              <span v-if="char.alliance_name" class="meta-tag">{{ char.alliance_name }}</span>
-              <span v-else-if="char.alliance_id" class="meta-tag">Alliance {{ char.alliance_id }}</span>
-            </div>
-          </div>
-          <div class="char-arrow">→</div>
+    <template v-else>
+      <!-- Summary stats -->
+      <div class="summary-row">
+        <div class="stat-card">
+          <div class="stat-label">{{ t('dashboard.totalCharacters') }}</div>
+          <div class="stat-value">{{ characters.length }}</div>
         </div>
-
-        <div class="char-actions" v-if="characters.length > 1 || !char.is_primary">
-          <button
-            v-if="!char.is_primary"
-            class="action-btn action-btn--primary"
-            @click.stop="setPrimary(char)"
-          >
-            {{ t('dashboard.setPrimary') }}
-          </button>
-          <button
-            v-if="!char.is_primary"
-            class="action-btn action-btn--danger"
-            @click.stop="unbind(char)"
-          >
-            {{ t('dashboard.unbind') }}
-          </button>
+        <div class="stat-card">
+          <div class="stat-label">{{ t('dashboard.totalISK') }}</div>
+          <div class="stat-value isk">{{ fmtISK(totalISK) }} <span class="isk-unit">ISK</span></div>
         </div>
       </div>
-    </div>
+
+      <!-- Toggle button -->
+      <button class="expand-btn" @click="showChars = !showChars">
+        <span>{{ showChars ? t('dashboard.collapseChars') : t('dashboard.expandChars') }} ({{ characters.length }})</span>
+        <span class="expand-caret" :class="{ open: showChars }">▾</span>
+      </button>
+
+      <!-- Character list (collapsible) -->
+      <div v-if="showChars" class="character-grid">
+        <div
+          v-for="char in characters"
+          :key="char.character_id"
+          class="char-card"
+          :class="{ 'char-card--primary': char.is_primary }"
+        >
+          <div class="char-main" @click="goCharacter(char.character_id)">
+            <div class="char-portrait-wrap">
+              <img
+                :src="portraitStore.getUrl(char.character_id, 128)"
+                :alt="char.character_name"
+                class="char-portrait"
+              />
+            </div>
+            <div class="char-info">
+              <div class="char-name-row">
+                <span class="char-name">{{ char.character_name }}</span>
+                <span v-if="char.is_primary" class="primary-badge">{{ t('dashboard.primaryBadge') }}</span>
+              </div>
+              <div class="char-meta">
+                <span v-if="char.corporation_name" class="meta-tag">{{ char.corporation_name }}</span>
+                <span v-else-if="char.corporation_id" class="meta-tag">Corp {{ char.corporation_id }}</span>
+                <span v-if="char.alliance_name" class="meta-tag">{{ char.alliance_name }}</span>
+                <span v-else-if="char.alliance_id" class="meta-tag">Alliance {{ char.alliance_id }}</span>
+              </div>
+              <div v-if="char.wallet_balance !== null" class="char-balance">
+                {{ fmtISK(char.wallet_balance) }} ISK
+              </div>
+            </div>
+            <div class="char-arrow">→</div>
+          </div>
+
+          <div class="char-actions" v-if="characters.length > 1 || !char.is_primary">
+            <button
+              v-if="!char.is_primary"
+              class="action-btn action-btn--primary"
+              @click.stop="setPrimary(char)"
+            >
+              {{ t('dashboard.setPrimary') }}
+            </button>
+            <button
+              v-if="!char.is_primary"
+              class="action-btn action-btn--danger"
+              @click.stop="unbind(char)"
+            >
+              {{ t('dashboard.unbind') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -165,6 +204,64 @@ async function unbind(char: CharacterSummary) {
 .empty-sub {
   font-size: 0.9rem;
 }
+
+/* Summary */
+.summary-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.stat-card {
+  background: #1e1e1c;
+  border: 1px solid #30302e;
+  border-radius: 8px;
+  padding: 14px 24px;
+  min-width: 160px;
+}
+.stat-label {
+  font-size: 0.75rem;
+  color: #5e5d59;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: #faf9f5;
+}
+.stat-value.isk { color: #6abf69; }
+.isk-unit {
+  font-size: 0.75rem;
+  color: #5e5d59;
+  font-weight: 400;
+}
+
+/* Toggle */
+.expand-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #1e1e1c;
+  border: 1px solid #30302e;
+  border-radius: 6px;
+  padding: 7px 16px;
+  color: #87867f;
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-bottom: 14px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.expand-btn:hover { border-color: #5e5d59; color: #b0aea5; }
+.expand-caret {
+  font-size: 0.65rem;
+  display: inline-block;
+  transition: transform 0.2s;
+}
+.expand-caret.open { transform: rotate(180deg); }
+
+/* Character grid */
 .character-grid {
   display: flex;
   flex-direction: column;
@@ -209,7 +306,7 @@ async function unbind(char: CharacterSummary) {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 .char-name {
   font-size: 1rem;
@@ -229,6 +326,7 @@ async function unbind(char: CharacterSummary) {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+  margin-bottom: 4px;
 }
 .meta-tag {
   font-size: 0.78rem;
@@ -236,6 +334,10 @@ async function unbind(char: CharacterSummary) {
   background: #30302e;
   padding: 2px 8px;
   border-radius: 4px;
+}
+.char-balance {
+  font-size: 0.8rem;
+  color: #6abf69;
 }
 .char-arrow {
   color: #5e5d59;

@@ -41,7 +41,7 @@
     "errorMsg": "错误信息"
   },
   "nav": {
-    "dashboard": "Dashboard",
+    "dashboard": "角色总览",
     "character": "角色",
     "corporation": "公司",
     "alliance": "联盟",

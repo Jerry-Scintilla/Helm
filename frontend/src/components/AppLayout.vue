@@ -22,7 +22,7 @@ const isIframeRoute = computed(() => route.meta.iframePlugin === true)
         </template>
       </AppHeader>
       <div class="shell-content" :class="{ 'shell-content--iframe': isIframeRoute }">
-        <RouterView />
+        <RouterView :key="String(route.params.id ?? route.path)" />
       </div>
     </div>
   </div>

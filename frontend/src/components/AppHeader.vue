@@ -79,11 +79,11 @@ function handleLangSelect(key: string) {
       <!-- Admin menu (superuser only) -->
       <n-dropdown
         v-if="auth.isSuperuser"
-        trigger="click"
+        trigger="hover"
         :options="adminMenuOptions"
         @select="handleAdminMenu"
       >
-        <button class="icon-btn" :title="t('header.adminTitle')">⚙</button>
+        <button class="icon-btn" :title="t('header.adminTitle')" @click="router.push('/admin/system')">⚙</button>
       </n-dropdown>
 
       <!-- Character switcher -->

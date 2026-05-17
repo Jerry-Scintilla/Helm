@@ -2,12 +2,14 @@
 import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCorporationStore } from '@/stores/corporation'
+import { useI18n } from 'vue-i18n'
 import type { DataTableColumns } from 'naive-ui'
 import type { CorporationAsset } from '@/stores/corporation'
 import { resolveSdeName } from '@/utils/sde'
 
 const route = useRoute()
 const corpStore = useCorporationStore()
+const { t } = useI18n()
 const corporationId = Number(route.params.id)
 const loading = ref(true)
 const page = ref(1)
@@ -24,12 +26,12 @@ async function load() {
 }
 
 const cols: DataTableColumns<CorporationAsset> = [
-  { title: '物品', key: 'type_id', ellipsis: true, render: r => resolveSdeName(r.type_name, String(r.type_id)) },
+  { title: () => t('common.item'), key: 'type_id', ellipsis: true, render: r => resolveSdeName(r.type_name, String(r.type_id)) },
   { title: 'Location ID', key: 'location_id', width: 120 },
-  { title: '位置类型', key: 'location_type', width: 120 },
-  { title: '数量', key: 'quantity', width: 80, align: 'right' },
+  { title: () => t('common.status'), key: 'location_type', width: 120 },
+  { title: () => t('common.quantity'), key: 'quantity', width: 80, align: 'right' },
   {
-    title: '状态', key: 'is_singleton', width: 80,
+    title: 'Singleton', key: 'is_singleton', width: 80,
     render: r => r.is_singleton ? 'Singleton' : '—',
   },
 ]
@@ -37,11 +39,11 @@ const cols: DataTableColumns<CorporationAsset> = [
 
 <template>
   <div>
-    <h1 class="page-title h-serif">公司资产</h1>
+    <h1 class="page-title h-serif">{{ t('corp.assets') }}</h1>
 
     <n-spin v-if="loading" :size="24" style="display:block;margin:60px auto;" />
     <template v-else>
-      <div class="total-bar">共 {{ corpStore.assets.length }} 条记录（本页）</div>
+      <div class="total-bar">{{ t('corp.assetsCount', { n: corpStore.assets.length }) }}</div>
       <n-data-table
         :columns="cols"
         :data="corpStore.assets"
@@ -50,9 +52,9 @@ const cols: DataTableColumns<CorporationAsset> = [
         :row-key="(r: CorporationAsset) => r.item_id"
       />
       <div class="pagination">
-        <n-button size="small" :disabled="page <= 1" @click="page--; load()">上一页</n-button>
-        <span class="page-num">第 {{ page }} 页</span>
-        <n-button size="small" :disabled="corpStore.assets.length < 200" @click="page++; load()">下一页</n-button>
+        <n-button size="small" :disabled="page <= 1" @click="page--; load()">{{ t('common.prevPage') }}</n-button>
+        <span class="page-num">{{ t('common.page', { n: page }) }}</span>
+        <n-button size="small" :disabled="corpStore.assets.length < 200" @click="page++; load()">{{ t('common.nextPage') }}</n-button>
       </div>
     </template>
   </div>

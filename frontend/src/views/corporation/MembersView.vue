@@ -2,6 +2,7 @@
 import { onMounted, ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCorporationStore } from '@/stores/corporation'
+import { useI18n } from 'vue-i18n'
 import type { DataTableColumns } from 'naive-ui'
 import type { CorporationMember } from '@/stores/corporation'
 import { resolveSdeName } from '@/utils/sde'
@@ -9,6 +10,7 @@ import type { SdeName } from '@/utils/sde'
 
 const route = useRoute()
 const corpStore = useCorporationStore()
+const { t } = useI18n()
 const corporationId = Number(route.params.id)
 const loading = ref(true)
 const search = ref('')
@@ -29,16 +31,16 @@ const filtered = computed(() => {
 
 function fmtDate(dt: string | null) {
   if (!dt) return '—'
-  return new Date(dt).toLocaleDateString('zh-CN')
+  return new Date(dt).toLocaleDateString()
 }
 
 const cols: DataTableColumns<CorporationMember> = [
   { title: 'Character ID', key: 'character_id', width: 120 },
-  { title: '加入日期', key: 'start_date', width: 120, render: r => fmtDate(r.start_date) },
-  { title: '最后登录', key: 'logon_date', width: 160, render: r => fmtDate(r.logon_date) },
-  { title: '最后登出', key: 'logoff_date', width: 160, render: r => fmtDate(r.logoff_date) },
+  { title: () => t('corp.joinDate'), key: 'start_date', width: 120, render: r => fmtDate(r.start_date) },
+  { title: () => t('corp.lastLogin'), key: 'logon_date', width: 160, render: r => fmtDate(r.logon_date) },
+  { title: () => t('corp.lastLogoff'), key: 'logoff_date', width: 160, render: r => fmtDate(r.logoff_date) },
   {
-    title: '舰船',
+    title: () => t('corp.ship'),
     key: 'ship_type_id',
     ellipsis: true,
     render: r => {
@@ -54,10 +56,10 @@ const cols: DataTableColumns<CorporationMember> = [
 <template>
   <div>
     <div class="header-row">
-      <h1 class="page-title h-serif">成员</h1>
+      <h1 class="page-title h-serif">{{ t('nav.members') }}</h1>
       <n-input
         v-model:value="search"
-        placeholder="搜索 Character ID"
+        :placeholder="t('corp.searchMember')"
         size="small"
         clearable
         style="width:220px"
@@ -66,7 +68,7 @@ const cols: DataTableColumns<CorporationMember> = [
 
     <n-spin v-if="loading" :size="24" style="display:block;margin:60px auto;" />
     <div v-else>
-      <div class="total-bar">共 {{ filtered.length }} / {{ corpStore.members.length }} 名成员</div>
+      <div class="total-bar">{{ t('corp.memberTotal', { filtered: filtered.length, total: corpStore.members.length }) }}</div>
       <n-data-table
         :columns="cols"
         :data="filtered"

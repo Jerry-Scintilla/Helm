@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAdminStore } from '@/stores/admin'
 
 const adminStore = useAdminStore()
+const { t } = useI18n()
 const loading = ref(true)
 
 onMounted(async () => {
@@ -13,14 +15,14 @@ onMounted(async () => {
   }
 })
 
-const statDefs = [
-  { key: 'total_users', label: '用户数' },
-  { key: 'total_characters', label: '角色数' },
-  { key: 'total_corporations', label: '公司数' },
-  { key: 'total_alliances', label: '联盟数' },
-  { key: 'total_buckets', label: 'Bucket 数' },
-  { key: 'total_bucket_tokens', label: 'Bucket Token 数' },
-] as const
+const statDefs = computed(() => [
+  { key: 'total_users', label: t('admin.stat.users') },
+  { key: 'total_characters', label: t('admin.stat.characters') },
+  { key: 'total_corporations', label: t('admin.stat.corporations') },
+  { key: 'total_alliances', label: t('admin.stat.alliances') },
+  { key: 'total_buckets', label: t('admin.stat.buckets') },
+  { key: 'total_bucket_tokens', label: t('admin.stat.bucketTokens') },
+] as const)
 </script>
 
 <template>
@@ -32,7 +34,7 @@ const statDefs = [
         <div class="stat-value">{{ adminStore.systemStats[def.key] }}</div>
       </div>
     </div>
-    <div v-else class="muted">暂无数据</div>
+    <div v-else class="muted">{{ t('common.noData') }}</div>
   </div>
 </template>
 

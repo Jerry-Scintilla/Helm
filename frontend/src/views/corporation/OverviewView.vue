@@ -2,16 +2,18 @@
 import { onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCorporationStore } from '@/stores/corporation'
+import { useI18n } from 'vue-i18n'
 
 const route = useRoute()
 const corpStore = useCorporationStore()
+const { t } = useI18n()
 const corporationId = Number(route.params.id)
 
 onMounted(() => corpStore.fetchInfo(corporationId))
 
 function fmtDate(dt: string | null) {
   if (!dt) return '—'
-  return new Date(dt).toLocaleDateString('zh-CN')
+  return new Date(dt).toLocaleDateString()
 }
 </script>
 
@@ -30,13 +32,13 @@ function fmtDate(dt: string | null) {
         <div>
           <h1 class="corp-name h-serif">{{ corpStore.corporationInfo.name }}</h1>
           <div class="corp-ticker">[{{ corpStore.corporationInfo.ticker }}]</div>
-          <div class="updated">数据更新于 {{ fmtDate(corpStore.corporationInfo.updated_at) }}</div>
+          <div class="updated">{{ t('corp.updatedAt') }} {{ fmtDate(corpStore.corporationInfo.updated_at) }}</div>
         </div>
       </div>
 
       <div class="info-grid">
         <div class="info-card">
-          <div class="info-label">成员数</div>
+          <div class="info-label">{{ t('corp.memberCount') }}</div>
           <div class="info-value">{{ corpStore.corporationInfo.member_count }}</div>
         </div>
         <div class="info-card">
@@ -44,13 +46,13 @@ function fmtDate(dt: string | null) {
           <div class="info-value">{{ corpStore.corporationInfo.ceo_id ?? '—' }}</div>
         </div>
         <div class="info-card">
-          <div class="info-label">联盟 ID</div>
+          <div class="info-label">{{ t('corp.allianceId') }}</div>
           <div class="info-value">{{ corpStore.corporationInfo.alliance_id ?? '—' }}</div>
         </div>
       </div>
 
       <div v-if="corpStore.corporationInfo.description" class="desc-section">
-        <div class="section-label">公司简介</div>
+        <div class="section-label">{{ t('corp.description') }}</div>
         <p class="desc-text">{{ corpStore.corporationInfo.description }}</p>
       </div>
     </template>

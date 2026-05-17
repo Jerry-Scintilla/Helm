@@ -2,28 +2,26 @@
 import { onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCharacterStore } from '@/stores/character'
+import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
 const route = useRoute()
 const router = useRouter()
 const charStore = useCharacterStore()
+const { t } = useI18n()
 const characterId = Number(route.params.id)
 
 onMounted(() => charStore.fetchAll(characterId))
 
 function fmt(n: number | null, suffix = '') {
   if (n === null) return '—'
-  return n.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) + suffix
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 }) + suffix
 }
 function fmtSp(sp: number) {
   if (sp >= 1_000_000) return (sp / 1_000_000).toFixed(2) + ' M SP'
   if (sp >= 1_000) return (sp / 1_000).toFixed(1) + ' K SP'
   return sp + ' SP'
-}
-function fmtDate(dt: string | null) {
-  if (!dt) return '—'
-  return new Date(dt).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
 function goTab(tab: string) {
@@ -71,40 +69,40 @@ function renderMarkdown(content: string): string {
       <!-- Stat cards -->
       <div class="stats-row">
         <div class="stat-card" @click="goTab('wallet')">
-          <div class="stat-label">钱包余额</div>
+          <div class="stat-label">{{ t('char.walletBalance') }}</div>
           <div class="stat-value">{{ fmt(charStore.wallet?.balance ?? null, ' ISK') }}</div>
-          <div class="stat-hint">点击查看明细 →</div>
+          <div class="stat-hint">{{ t('char.clickDetail') }}</div>
         </div>
         <div class="stat-card" @click="goTab('skills')">
-          <div class="stat-label">技能点</div>
+          <div class="stat-label">{{ t('char.skillPoints') }}</div>
           <div class="stat-value">{{ fmtSp(charStore.skills?.total_sp ?? 0) }}</div>
-          <div class="stat-hint">{{ charStore.skills?.skills.length ?? 0 }} 个技能 →</div>
+          <div class="stat-hint">{{ t('char.skillCount', { n: charStore.skills?.groups?.reduce((s, g) => s + g.skills.length, 0) ?? 0 }) }}</div>
         </div>
         <div class="stat-card" @click="goTab('mail')">
-          <div class="stat-label">邮件</div>
-          <div class="stat-value">查看</div>
-          <div class="stat-hint">邮件列表 →</div>
+          <div class="stat-label">{{ t('nav.mail') }}</div>
+          <div class="stat-value">{{ t('common.view') }}</div>
+          <div class="stat-hint">{{ t('char.mailList') }}</div>
         </div>
         <div class="stat-card" @click="goTab('notifications')">
-          <div class="stat-label">通知</div>
-          <div class="stat-value">查看</div>
-          <div class="stat-hint">通知列表 →</div>
+          <div class="stat-label">{{ t('nav.notifications') }}</div>
+          <div class="stat-value">{{ t('common.view') }}</div>
+          <div class="stat-hint">{{ t('char.notifList') }}</div>
         </div>
       </div>
 
       <!-- Quick nav tabs -->
       <div class="quick-nav">
-        <button class="qnav-btn" @click="goTab('wallet')">钱包</button>
-        <button class="qnav-btn" @click="goTab('skills')">技能</button>
-        <button class="qnav-btn" @click="goTab('assets')">资产</button>
-        <button class="qnav-btn" @click="goTab('mail')">邮件</button>
-        <button class="qnav-btn" @click="goTab('notifications')">通知</button>
+        <button class="qnav-btn" @click="goTab('wallet')">{{ t('nav.wallet') }}</button>
+        <button class="qnav-btn" @click="goTab('skills')">{{ t('nav.skills') }}</button>
+        <button class="qnav-btn" @click="goTab('assets')">{{ t('nav.assets') }}</button>
+        <button class="qnav-btn" @click="goTab('mail')">{{ t('nav.mail') }}</button>
+        <button class="qnav-btn" @click="goTab('notifications')">{{ t('nav.notifications') }}</button>
       </div>
 
       <!-- Plugin extensions section -->
       <template v-if="charStore.characterInfo?.extensions?.length">
         <div class="extensions-section">
-          <div class="extensions-title">插件数据</div>
+          <div class="extensions-title">{{ t('char.pluginData') }}</div>
           <div class="extensions-grid">
             <div
               v-for="ext in charStore.characterInfo.extensions"

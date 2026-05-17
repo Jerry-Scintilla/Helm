@@ -2,9 +2,11 @@
 import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCharacterStore } from '@/stores/character'
+import { useI18n } from 'vue-i18n'
 
 const route = useRoute()
 const charStore = useCharacterStore()
+const { t } = useI18n()
 const characterId = Number(route.params.id)
 const loading = ref(true)
 const loadingBody = ref(false)
@@ -28,13 +30,13 @@ async function openMail(mailId: number) {
 
 function fmtDate(dt: string | null) {
   if (!dt) return '—'
-  return new Date(dt).toLocaleString('zh-CN')
+  return new Date(dt).toLocaleString()
 }
 </script>
 
 <template>
   <div>
-    <h1 class="page-title h-serif">邮件</h1>
+    <h1 class="page-title h-serif">{{ t('nav.mail') }}</h1>
 
     <n-spin v-if="loading" :size="24" style="display:block;margin:60px auto;" />
     <div v-else class="mail-layout">
@@ -47,27 +49,27 @@ function fmtDate(dt: string | null) {
           :class="{ unread: !mail.is_read, active: charStore.selectedMail?.mail_id === mail.mail_id }"
           @click="openMail(mail.mail_id)"
         >
-          <div class="mail-subject">{{ mail.subject || '(无标题)' }}</div>
+          <div class="mail-subject">{{ mail.subject || t('mail.noSubject') }}</div>
           <div class="mail-meta">
             <span>From {{ mail.from_name ?? mail.from_id ?? '?' }}</span>
             <span>{{ fmtDate(mail.timestamp) }}</span>
           </div>
         </div>
-        <div v-if="charStore.mails.length === 0" class="muted">暂无邮件</div>
+        <div v-if="charStore.mails.length === 0" class="muted">{{ t('mail.empty') }}</div>
       </div>
 
       <!-- Mail detail -->
       <div class="mail-detail">
         <n-spin v-if="loadingBody" :size="20" style="margin:40px auto;display:block;" />
         <div v-else-if="charStore.selectedMail" class="mail-body-wrap">
-          <h2 class="detail-subject">{{ charStore.selectedMail.subject || '(无标题)' }}</h2>
+          <h2 class="detail-subject">{{ charStore.selectedMail.subject || t('mail.noSubject') }}</h2>
           <div class="detail-meta">
-            <span>发件人 {{ charStore.selectedMail.from_name ?? charStore.selectedMail.from_id ?? '?' }}</span>
+            <span>{{ t('mail.from') }} {{ charStore.selectedMail.from_name ?? charStore.selectedMail.from_id ?? '?' }}</span>
             <span>{{ fmtDate(charStore.selectedMail.timestamp) }}</span>
           </div>
           <div class="detail-body" v-html="charStore.selectedMail.body" />
         </div>
-        <div v-else class="no-selection">← 点击左侧邮件查看内容</div>
+        <div v-else class="no-selection">{{ t('mail.clickToRead') }}</div>
       </div>
     </div>
   </div>

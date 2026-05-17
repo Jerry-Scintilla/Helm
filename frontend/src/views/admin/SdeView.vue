@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAdminStore } from '@/stores/admin'
 import { useMessage } from 'naive-ui'
 
 const adminStore = useAdminStore()
 const message = useMessage()
+const { t } = useI18n()
 const loading = ref(true)
 const importing = ref(false)
 const uploading = ref(false)
@@ -31,16 +33,16 @@ async function handleImport() {
   try {
     const url = customUrlEnabled.value ? customUrl.value : undefined
     const taskId = await adminStore.triggerSdeImport(url)
-    message.info('SDE 导入已启动')
+    message.info(t('admin.sde.importStarted'))
     adminStore.startImportPolling(taskId, (task) => {
       if (task.status === 'success') {
-        message.success('SDE 导入成功')
+        message.success(t('admin.sde.importSuccess'))
       } else {
-        message.error('SDE 导入失败')
+        message.error(t('admin.sde.importFailed'))
       }
     })
   } catch (e: any) {
-    message.error(e.response?.data?.detail ?? '启动导入失败')
+    message.error(e.response?.data?.detail ?? t('admin.sde.importStartFailed'))
   } finally {
     importing.value = false
   }
@@ -51,17 +53,17 @@ async function handleUpload() {
   uploading.value = true
   try {
     const taskId = await adminStore.triggerSdeUpload(uploadFile.value)
-    message.info('SDE 上传已启动')
+    message.info(t('admin.sde.uploadStarted'))
     adminStore.startImportPolling(taskId, (task) => {
       if (task.status === 'success') {
-        message.success('SDE 导入成功')
+        message.success(t('admin.sde.importSuccess'))
       } else {
-        message.error('SDE 导入失败')
+        message.error(t('admin.sde.importFailed'))
       }
     })
     uploadFile.value = null
   } catch (e: any) {
-    message.error(e.response?.data?.detail ?? '上传失败')
+    message.error(e.response?.data?.detail ?? t('admin.sde.uploadFailed'))
   } finally {
     uploading.value = false
   }
@@ -70,7 +72,7 @@ async function handleUpload() {
 function onFileChange(e: Event) {
   const input = e.target as HTMLInputElement
   if (input.files && input.files.length > 0) {
-    uploadFile.value = input.files[0]
+    uploadFile.value = input.files[0] ?? null
   }
 }
 
@@ -85,24 +87,14 @@ const statusColor = computed(() => {
 })
 
 const statusLabel = computed(() => {
-  const map: Record<string, string> = {
-    idle: '空闲',
-    running: '运行中',
-    success: '成功',
-    failed: '失败',
-  }
-  return map[adminStore.sdeStatus?.status ?? 'idle'] ?? adminStore.sdeStatus?.status
+  const key = adminStore.sdeStatus?.status ?? 'idle'
+  return t(`admin.sde.statusMap.${key}` as any) ?? key
 })
 
 const taskStatusLabel = computed(() => {
   if (!adminStore.currentTask) return null
-  const map: Record<string, string> = {
-    pending: '等待中',
-    start: '进行中',
-    success: '成功',
-    failure: '失败',
-  }
-  return map[adminStore.currentTask.status] ?? adminStore.currentTask.status
+  const key = adminStore.currentTask.status
+  return t(`admin.sde.taskStatusMap.${key}` as any) ?? key
 })
 
 const isRunning = computed(() => adminStore.sdeStatus?.status === 'running')
@@ -111,8 +103,8 @@ const isRunning = computed(() => adminStore.sdeStatus?.status === 'running')
 <template>
   <div>
     <div class="section-header">
-      <span class="count-bar">SDE 状态</span>
-      <n-button size="small" @click="adminStore.fetchSdeStatus()">刷新</n-button>
+      <span class="count-bar">{{ t('admin.sde.statusTitle') }}</span>
+      <n-button size="small" @click="adminStore.fetchSdeStatus()">{{ t('common.refresh') }}</n-button>
     </div>
 
     <n-spin v-if="loading" :size="24" style="display:block;margin:40px auto;" />
@@ -120,84 +112,84 @@ const isRunning = computed(() => adminStore.sdeStatus?.status === 'running')
     <template v-else-if="adminStore.sdeStatus">
       <div class="sde-grid">
         <div class="sde-card">
-          <div class="card-label">当前状态</div>
+          <div class="card-label">{{ t('admin.sde.currentStatus') }}</div>
           <div class="card-value" :style="{ color: statusColor }">{{ statusLabel }}</div>
           <div v-if="adminStore.currentTask && isRunning" class="task-status">
-            任务: {{ taskStatusLabel }}
+            {{ t('admin.sde.task') }} {{ taskStatusLabel }}
           </div>
         </div>
 
         <div class="sde-card">
-          <div class="card-label">版本</div>
+          <div class="card-label">{{ t('common.version') }}</div>
           <div class="card-value">{{ adminStore.sdeStatus.version ?? '—' }}</div>
         </div>
 
         <div class="sde-card">
-          <div class="card-label">发布日期</div>
+          <div class="card-label">{{ t('admin.sde.releaseDate') }}</div>
           <div class="card-value small">
             {{ adminStore.sdeStatus.release_date
-                ? new Date(adminStore.sdeStatus.release_date).toLocaleDateString('zh-CN')
+                ? new Date(adminStore.sdeStatus.release_date).toLocaleDateString()
                 : '—' }}
           </div>
         </div>
 
         <div class="sde-card">
-          <div class="card-label">类型数</div>
+          <div class="card-label">{{ t('admin.sde.typeCount') }}</div>
           <div class="card-value">{{ adminStore.sdeStatus.row_count?.toLocaleString() ?? '—' }}</div>
         </div>
 
         <div class="sde-card">
-          <div class="card-label">上次导入</div>
+          <div class="card-label">{{ t('admin.sde.lastImport') }}</div>
           <div class="card-value small">
             {{ adminStore.sdeStatus.last_import_at
-                ? new Date(adminStore.sdeStatus.last_import_at).toLocaleString('zh-CN')
-                : '从未' }}
+                ? new Date(adminStore.sdeStatus.last_import_at).toLocaleString()
+                : t('common.neverRun') }}
           </div>
         </div>
       </div>
 
       <div v-if="adminStore.sdeStatus.source_url" class="source-url">
-        数据来源: <code>{{ adminStore.sdeStatus.source_url }}</code>
+        {{ t('admin.sde.source') }}: <code>{{ adminStore.sdeStatus.source_url }}</code>
       </div>
 
       <div v-if="adminStore.sdeStatus.last_error" class="error-box">
-        <strong>错误信息:</strong> {{ adminStore.sdeStatus.last_error }}
+        <strong>{{ t('admin.sde.errorLabel') }}</strong> {{ adminStore.sdeStatus.last_error }}
       </div>
 
-      <!-- 任务结果展示 -->
+      <!-- Import result -->
       <div v-if="adminStore.currentTask?.result" class="result-box">
-        <div class="result-title">导入详情</div>
+        <div class="result-title">{{ t('admin.sde.importDetails') }}</div>
         <div class="result-grid">
           <div class="result-item">
-            <span class="result-label">类型</span>
+            <span class="result-label">{{ t('admin.sde.types') }}</span>
             <span class="result-value">{{ adminStore.currentTask.result.type_count?.toLocaleString() ?? '—' }}</span>
           </div>
           <div class="result-item">
-            <span class="result-label">分组</span>
+            <span class="result-label">{{ t('admin.sde.groups') }}</span>
             <span class="result-value">{{ adminStore.currentTask.result.group_count?.toLocaleString() ?? '—' }}</span>
           </div>
           <div class="result-item">
-            <span class="result-label">分类</span>
+            <span class="result-label">{{ t('admin.sde.categories') }}</span>
             <span class="result-value">{{ adminStore.currentTask.result.category_count?.toLocaleString() ?? '—' }}</span>
           </div>
         </div>
       </div>
 
       <div class="import-cards">
-        <!-- URL 导入 -->
+        <!-- URL import -->
         <div class="import-card">
           <div class="import-card-header">
             <span class="import-card-icon">🔗</span>
-            <span class="import-card-title">从 URL 导入</span>
+            <span class="import-card-title">{{ t('admin.sde.importFromUrl') }}</span>
           </div>
           <div class="import-card-body">
             <div class="url-display-row">
-              <span class="url-label">默认数据源</span>
+              <span class="url-label">{{ t('admin.sde.defaultSource') }}</span>
               <code class="url-code">{{ DEFAULT_URL }}</code>
             </div>
             <div class="import-row">
               <n-checkbox v-model:checked="customUrlEnabled" class="import-checkbox">
-                使用自定义 URL
+                {{ t('admin.sde.customUrl') }}
               </n-checkbox>
               <n-input
                 v-if="customUrlEnabled"
@@ -214,17 +206,17 @@ const isRunning = computed(() => adminStore.sdeStatus?.status === 'running')
                 class="action-btn"
                 @click="handleImport"
               >
-                {{ isRunning ? '导入中...' : '启动导入' }}
+                {{ isRunning ? t('admin.sde.importing') : t('admin.sde.startImport') }}
               </n-button>
             </div>
           </div>
         </div>
 
-        <!-- 文件上传 -->
+        <!-- File upload -->
         <div class="import-card">
           <div class="import-card-header">
             <span class="import-card-icon">📦</span>
-            <span class="import-card-title">上传本地文件</span>
+            <span class="import-card-title">{{ t('admin.sde.uploadFile') }}</span>
           </div>
           <div class="import-card-body">
             <label class="file-drop-area" :class="{ 'has-file': uploadFile }">
@@ -232,7 +224,7 @@ const isRunning = computed(() => adminStore.sdeStatus?.status === 'running')
               <span v-if="uploadFile" class="file-name">{{ uploadFile.name }}</span>
               <span v-else class="file-placeholder">
                 <span class="file-icon">📂</span>
-                点击选择 .zip 文件
+                {{ t('admin.sde.clickSelectZip') }}
               </span>
             </label>
             <div class="import-action">
@@ -242,7 +234,7 @@ const isRunning = computed(() => adminStore.sdeStatus?.status === 'running')
                 class="action-btn"
                 @click="handleUpload"
               >
-                {{ isRunning ? '导入中...' : '上传并导入' }}
+                {{ isRunning ? t('admin.sde.importing') : t('admin.sde.uploadAndImport') }}
               </n-button>
             </div>
           </div>
@@ -250,7 +242,7 @@ const isRunning = computed(() => adminStore.sdeStatus?.status === 'running')
       </div>
     </template>
 
-    <div v-else class="muted">暂无数据</div>
+    <div v-else class="muted">{{ t('common.noData') }}</div>
   </div>
 </template>
 

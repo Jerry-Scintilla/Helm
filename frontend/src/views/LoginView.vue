@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
+const { t } = useI18n()
 </script>
 
 <template>
@@ -10,16 +12,16 @@ const auth = useAuthStore()
       <div class="brand">
         <span class="brand-mark">H</span><span class="brand-text">ELM</span>
       </div>
-      <p class="subtitle">EVE Online 玩家管理工具</p>
+      <p class="subtitle">{{ t('login.subtitle') }}</p>
       <div class="divider" />
-      <p class="desc">使用你的 EVE Online 账号登录，绑定角色后即可开始使用。</p>
+      <p class="desc">{{ t('login.desc') }}</p>
       <button class="eve-btn" @click="auth.loginWithEve()">
         <img
           src="https://web.ccpgamescdn.com/eveonlineassets/developers/eve-sso-login-black-small.png"
           alt="Login with EVE Online"
         />
       </button>
-      <p class="fine-print">登录即表示你同意 EVE Online 服务条款</p>
+      <p class="fine-print">{{ t('login.finePrint') }}</p>
     </div>
   </div>
 </template>

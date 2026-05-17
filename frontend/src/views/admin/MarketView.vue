@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
 import { useMessage } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import api from '@/api'
+import { resolveSdeName } from '@/utils/sde'
+import type { SdeName } from '@/utils/sde'
 
 const message = useMessage()
+const { t } = useI18n()
 
 // ── Region data ──────────────────────────────────────────────────────────────
 const KNOWN_REGIONS: { label: string; value: number }[] = [
@@ -35,7 +39,7 @@ async function fetchConfig() {
     currentRegionId.value  = data.region_id
     selectedRegionId.value = data.region_id
   } catch {
-    message.error('获取市场配置失败')
+    message.error(t('admin.market.fetchConfigFailed'))
   } finally {
     configLoading.value = false
   }
@@ -43,16 +47,16 @@ async function fetchConfig() {
 
 async function saveConfig() {
   if (!selectedRegionId.value) {
-    message.warning('请选择一个星域')
+    message.warning(t('admin.market.selectRegionWarning'))
     return
   }
   configSaving.value = true
   try {
     await api.put('/api/v1/admin/market/config', { region_id: selectedRegionId.value })
     currentRegionId.value = selectedRegionId.value
-    message.success('市场默认区域已更新')
+    message.success(t('admin.market.configSaved'))
   } catch (e: any) {
-    message.error(e.response?.data?.detail ?? '保存失败')
+    message.error(e.response?.data?.detail ?? t('common.saveFailed'))
   } finally {
     configSaving.value = false
   }
@@ -63,7 +67,7 @@ const configDirty = computed(() => selectedRegionId.value !== currentRegionId.va
 // ── Price Query ───────────────────────────────────────────────────────────────
 interface PriceRow {
   type_id:   number
-  type_name: string | null
+  type_name: SdeName | null
   best_buy:  number | null
   best_sell: number | null
 }
@@ -99,9 +103,9 @@ async function runRandomQuery() {
     queryRegionUsed.value = data.region_id
     const row = data.prices[String(item.type_id)]
     queryResult.value = row ?? null
-    if (!row) queryError.value = '该物品在目标区域暂无挂单'
+    if (!row) queryError.value = t('admin.market.noOrders')
   } catch (e: any) {
-    queryError.value = e.response?.data?.detail ?? '查询失败'
+    queryError.value = e.response?.data?.detail ?? t('admin.market.queryFailed')
   } finally {
     fetchingRandom.value = false
     querying.value = false
@@ -117,8 +121,8 @@ onMounted(fetchConfig)
     <!-- ── Region Config ──────────────────────────────────────────────────── -->
     <section class="panel">
       <div class="panel-header">
-        <span class="panel-title h-serif">默认查询星域</span>
-        <n-button size="small" :loading="configLoading" @click="fetchConfig">刷新</n-button>
+        <span class="panel-title h-serif">{{ t('admin.market.defaultRegion') }}</span>
+        <n-button size="small" :loading="configLoading" @click="fetchConfig">{{ t('common.refresh') }}</n-button>
       </div>
 
       <n-spin v-if="configLoading" :size="20" style="display:block;margin:32px auto;" />
@@ -126,18 +130,18 @@ onMounted(fetchConfig)
       <template v-else>
         <div class="config-body">
           <div class="current-region-row">
-            <span class="field-label">当前生效</span>
+            <span class="field-label">{{ t('admin.market.currentActive') }}</span>
             <span class="region-badge">{{ regionName(currentRegionId) }}</span>
           </div>
 
           <div class="select-row">
             <div class="select-wrap">
-              <span class="field-label">选择或搜索星域</span>
+              <span class="field-label">{{ t('admin.market.selectOrSearch') }}</span>
               <n-select
                 v-model:value="selectedRegionId"
                 :options="KNOWN_REGIONS"
                 filterable
-                placeholder="输入星域名称搜索..."
+                :placeholder="t('admin.market.regionSearchPlaceholder')"
                 size="small"
                 class="region-select"
               />
@@ -147,7 +151,7 @@ onMounted(fetchConfig)
               :loading="configSaving"
               :disabled="configSaving || !configDirty"
               @click="saveConfig"
-            >保存</n-button>
+            >{{ t('common.save') }}</n-button>
           </div>
         </div>
       </template>
@@ -156,8 +160,8 @@ onMounted(fetchConfig)
     <!-- ── Random Price Query ─────────────────────────────────────────────── -->
     <section class="panel">
       <div class="panel-header">
-        <span class="panel-title h-serif">物价随机检索</span>
-        <span class="panel-sub">随机从 SDE 抽取一个可交易物品，查询当前最优买卖价</span>
+        <span class="panel-title h-serif">{{ t('admin.market.randomQuery') }}</span>
+        <span class="panel-sub">{{ t('admin.market.randomQueryDesc') }}</span>
       </div>
 
       <div class="query-body">
@@ -166,7 +170,7 @@ onMounted(fetchConfig)
           :loading="querying"
           @click="runRandomQuery"
         >
-          {{ fetchingRandom ? '正在随机选取...' : querying ? '查询中...' : '随机查询物价' }}
+          {{ fetchingRandom ? t('admin.market.selectingRandom') : querying ? t('admin.market.querying') : t('admin.market.randomQueryBtn') }}
         </n-button>
 
         <div v-if="queryError" class="error-box">{{ queryError }}</div>
@@ -174,34 +178,34 @@ onMounted(fetchConfig)
         <div v-if="queryResult" class="result-card">
           <div class="result-item-header">
             <div class="result-type-id">type_id · {{ queryResult.type_id }}</div>
-            <div class="result-type-name">{{ queryResult.type_name ?? '未知物品' }}</div>
+            <div class="result-type-name">{{ resolveSdeName(queryResult.type_name, t('admin.market.unknownItem')) }}</div>
             <div class="result-region">
-              查询星域：{{ regionName(queryRegionUsed) }}
+              {{ t('admin.market.queryRegion') }}{{ regionName(queryRegionUsed) }}
             </div>
           </div>
 
           <div class="price-row-grid">
             <div class="price-block buy">
-              <div class="price-label">最优买价</div>
+              <div class="price-label">{{ t('admin.market.bestBuy') }}</div>
               <div class="price-value">{{ formatISK(queryResult.best_buy) }}</div>
-              <div class="price-hint">买单最高价</div>
+              <div class="price-hint">{{ t('admin.market.buyHint') }}</div>
             </div>
             <div class="price-divider"></div>
             <div class="price-block sell">
-              <div class="price-label">最优卖价</div>
+              <div class="price-label">{{ t('admin.market.bestSell') }}</div>
               <div class="price-value">{{ formatISK(queryResult.best_sell) }}</div>
-              <div class="price-hint">卖单最低价</div>
+              <div class="price-hint">{{ t('admin.market.sellHint') }}</div>
             </div>
             <div class="price-divider"></div>
             <div class="price-block spread">
-              <div class="price-label">价差</div>
+              <div class="price-label">{{ t('admin.market.spread') }}</div>
               <div class="price-value">
                 <template v-if="queryResult.best_buy !== null && queryResult.best_sell !== null">
                   {{ formatISK(queryResult.best_sell - queryResult.best_buy) }}
                 </template>
                 <template v-else>—</template>
               </div>
-              <div class="price-hint">卖价 − 买价</div>
+              <div class="price-hint">{{ t('admin.market.spreadHint') }}</div>
             </div>
           </div>
         </div>

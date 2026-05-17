@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import api from '@/api'
 import AssetItemGroup from '@/components/AssetItemGroup.vue'
 import type { AssetNode } from '@/components/AssetItemGroup.vue'
@@ -13,6 +14,7 @@ interface LocationGroup {
 }
 
 const route = useRoute()
+const { t } = useI18n()
 const characterId = Number(route.params.id)
 
 const locations = ref<LocationGroup[]>([])
@@ -55,29 +57,23 @@ watch(page, load)
 function locationLabel(loc: LocationGroup): string {
   if (loc.location_name) return loc.location_name
   if (loc.location_id) return String(loc.location_id)
-  return '未知位置'
+  return t('assets.unknownLocation')
 }
 
 function locationTypeLabel(type: string): string {
-  const map: Record<string, string> = {
-    station: '空间站',
-    solar_system: '星系',
-    other: '其他',
-    unknown: '未知',
-  }
-  return map[type] ?? type
+  const key = `assets.locationType.${type}` as any
+  return t(key) !== key ? t(key) : type
 }
 </script>
 
 <template>
   <div>
-    <h1 class="page-title h-serif">资产</h1>
+    <h1 class="page-title h-serif">{{ t('nav.assets') }}</h1>
 
-    <!-- 搜索栏 -->
     <div class="toolbar">
       <n-input
         v-model:value="searchQuery"
-        placeholder="搜索星系、空间站或玩家建筑…"
+        :placeholder="t('assets.searchPlaceholder')"
         clearable
         class="search-input"
         @input="onSearchInput"
@@ -87,12 +83,12 @@ function locationTypeLabel(type: string): string {
           <n-icon><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></n-icon>
         </template>
       </n-input>
-      <span class="total-bar">共 {{ total }} 个地点</span>
+      <span class="total-bar">{{ t('assets.locationCount', { n: total }) }}</span>
     </div>
 
     <n-spin v-if="loading" :size="24" style="display:block;margin:60px auto;" />
     <div v-else-if="locations.length === 0" class="muted">
-      {{ searchQuery ? '未找到匹配的地点' : '暂无资产数据' }}
+      {{ searchQuery ? t('assets.noMatch') : t('assets.noData') }}
     </div>
 
     <div v-else>
@@ -109,12 +105,12 @@ function locationTypeLabel(type: string): string {
             </span>
           </template>
           <template #header-extra>
-            <span class="loc-count">{{ countAll(loc.items) }} 项</span>
+            <span class="loc-count">{{ countAll(loc.items) }} {{ t('assets.items') }}</span>
           </template>
 
           <div class="col-header">
-            <span>物品</span>
-            <span style="text-align:right">数量</span>
+            <span>{{ t('common.item') }}</span>
+            <span style="text-align:right">{{ t('common.quantity') }}</span>
           </div>
           <AssetItemGroup :items="loc.items" :depth="0" />
         </n-collapse-item>

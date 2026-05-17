@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useApiTokenStore } from '@/stores/apiToken'
 import { useMessage } from 'naive-ui'
 
 const tokenStore = useApiTokenStore()
 const message = useMessage()
+const { t } = useI18n()
 const loading = ref(true)
 const showCreate = ref(false)
 const newName = ref('')
@@ -31,12 +33,12 @@ async function createToken() {
   creating.value = true
   try {
     await tokenStore.createToken(newName.value.trim(), newScopes.value)
-    message.success('Token 已创建，请妥善保存完整值')
+    message.success(t('admin.tokens.created'))
     showCreate.value = false
     newName.value = ''
     newScopes.value = []
   } catch {
-    message.error('创建失败')
+    message.error(t('common.createFailed'))
   } finally {
     creating.value = false
   }
@@ -45,21 +47,21 @@ async function createToken() {
 async function revoke(id: number) {
   try {
     await tokenStore.revokeToken(id)
-    message.success('Token 已撤销')
+    message.success(t('admin.tokens.revoked'))
   } catch {
-    message.error('撤销失败')
+    message.error(t('admin.tokens.revokeFailed'))
   }
 }
 
 function copyToken() {
   if (!tokenStore.newTokenValue) return
   navigator.clipboard.writeText(tokenStore.newTokenValue)
-  message.success('已复制到剪贴板')
+  message.success(t('common.copiedToClipboard'))
 }
 
 function fmtDate(dt: string | null) {
   if (!dt) return '—'
-  return new Date(dt).toLocaleDateString('zh-CN')
+  return new Date(dt).toLocaleDateString()
 }
 </script>
 
@@ -69,33 +71,33 @@ function fmtDate(dt: string | null) {
     <n-alert
       v-if="tokenStore.newTokenValue"
       type="warning"
-      title="请立即保存以下 Token 完整值，关闭后无法再次查看"
+      :title="t('admin.tokens.saveWarning')"
       closable
       @close="tokenStore.clearNewToken()"
       style="margin-bottom:16px"
     >
       <div class="token-value">{{ tokenStore.newTokenValue }}</div>
-      <n-button size="small" style="margin-top:8px" @click="copyToken">复制</n-button>
+      <n-button size="small" style="margin-top:8px" @click="copyToken">{{ t('common.copy') }}</n-button>
     </n-alert>
 
     <div class="section-header">
-      <span class="count-bar">{{ tokenStore.tokens.length }} 个 API Token</span>
-      <n-button size="small" type="primary" @click="showCreate = !showCreate">+ 新建</n-button>
+      <span class="count-bar">{{ t('admin.tokens.count', { n: tokenStore.tokens.length }) }}</span>
+      <n-button size="small" type="primary" @click="showCreate = !showCreate">{{ t('common.createNew') }}</n-button>
     </div>
 
     <n-collapse-transition :show="showCreate">
       <div class="create-form">
-        <n-input v-model:value="newName" placeholder="Token 名称" size="small" style="width:200px" />
+        <n-input v-model:value="newName" :placeholder="t('admin.tokens.namePlaceholder')" size="small" style="width:200px" />
         <n-select
           v-model:value="newScopes"
           :options="scopeOptions"
           multiple
           size="small"
           style="width:280px"
-          placeholder="选择作用域"
+          :placeholder="t('admin.tokens.selectScope')"
         />
-        <n-button size="small" type="primary" :loading="creating" @click="createToken">创建</n-button>
-        <n-button size="small" @click="showCreate = false">取消</n-button>
+        <n-button size="small" type="primary" :loading="creating" @click="createToken">{{ t('common.create') }}</n-button>
+        <n-button size="small" @click="showCreate = false">{{ t('common.cancel') }}</n-button>
       </div>
     </n-collapse-transition>
 
@@ -108,15 +110,15 @@ function fmtDate(dt: string | null) {
             <span class="token-prefix">{{ token.token_prefix }}…</span>
           </div>
           <n-tag :type="token.is_active ? 'success' : 'error'" size="tiny">
-            {{ token.is_active ? '活跃' : '已撤销' }}
+            {{ token.is_active ? t('admin.tokens.active') : t('admin.tokens.revokedTag') }}
           </n-tag>
         </div>
         <div class="token-scopes">
           <span v-for="s in token.scopes.split(' ').filter(Boolean)" :key="s" class="scope-tag">{{ s }}</span>
         </div>
         <div class="token-footer">
-          <span class="token-meta">创建 {{ fmtDate(token.created_at) }}</span>
-          <span v-if="token.last_used_at" class="token-meta">最后使用 {{ fmtDate(token.last_used_at) }}</span>
+          <span class="token-meta">{{ t('admin.tokens.createdPrefix') }} {{ fmtDate(token.created_at) }}</span>
+          <span v-if="token.last_used_at" class="token-meta">{{ t('admin.tokens.lastUsed') }} {{ fmtDate(token.last_used_at) }}</span>
           <n-button
             v-if="token.is_active"
             size="tiny"
@@ -124,11 +126,11 @@ function fmtDate(dt: string | null) {
             ghost
             @click="revoke(token.id)"
           >
-            撤销
+            {{ t('admin.tokens.revoke') }}
           </n-button>
         </div>
       </div>
-      <div v-if="tokenStore.tokens.length === 0" class="muted">暂无 API Token</div>
+      <div v-if="tokenStore.tokens.length === 0" class="muted">{{ t('admin.tokens.empty') }}</div>
     </div>
   </div>
 </template>

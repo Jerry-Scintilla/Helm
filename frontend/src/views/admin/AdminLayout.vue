@@ -2,21 +2,23 @@
 import { useRouter, useRoute } from 'vue-router'
 import { RouterView } from 'vue-router'
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const router = useRouter()
 const route = useRoute()
+const { t } = useI18n()
 
-const tabs = [
-  { label: '系统', path: '/admin/system' },
-  { label: '用户', path: '/admin/users' },
-  { label: '角色权限', path: '/admin/roles' },
-  { label: 'SDE', path: '/admin/sde' },
-  { label: 'Buckets', path: '/admin/buckets' },
-  { label: 'API Token', path: '/admin/tokens' },
-  { label: '插件', path: '/admin/plugins' },
-  { label: '任务', path: '/admin/tasks' },
-  { label: '市场', path: '/admin/market' },
-]
+const tabs = computed(() => [
+  { label: t('admin.tabs.system'), path: '/admin/system' },
+  { label: t('admin.tabs.users'), path: '/admin/users' },
+  { label: t('admin.tabs.roles'), path: '/admin/roles' },
+  { label: t('admin.tabs.sde'), path: '/admin/sde' },
+  { label: t('admin.tabs.buckets'), path: '/admin/buckets' },
+  { label: t('admin.tabs.tokens'), path: '/admin/tokens' },
+  { label: t('admin.tabs.plugins'), path: '/admin/plugins' },
+  { label: t('admin.tabs.tasks'), path: '/admin/tasks' },
+  { label: t('admin.tabs.market'), path: '/admin/market' },
+])
 
 const activeTab = computed(() => route.path)
 </script>
@@ -24,7 +26,7 @@ const activeTab = computed(() => route.path)
 <template>
   <div>
     <div class="admin-header">
-      <h1 class="admin-title h-serif">管理后台</h1>
+      <h1 class="admin-title h-serif">{{ t('admin.title') }}</h1>
     </div>
     <div class="admin-tabs">
       <button v-for="tab in tabs" :key="tab.path" class="admin-tab" :class="{ active: activeTab === tab.path }"

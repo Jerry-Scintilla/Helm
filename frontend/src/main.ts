@@ -3,9 +3,12 @@ import './assets/main.css'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import naive, { darkTheme, createDiscreteApi } from 'naive-ui'
+import { createI18n } from 'vue-i18n'
 
 import App from './App.vue'
 import router from './router'
+import zh from './locales/zh.json'
+import en from './locales/en.json'
 
 // Naive UI 内部菜单组件注册 wheel 事件时未标记 passive，
 // 导致 Chrome DevTools 报 Violation。通过主动添加 passive 解决。
@@ -14,6 +17,7 @@ function suppressWheelPassiveWarning() {
   const add = (EventTarget.prototype.addEventListener as any)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ;(EventTarget.prototype.addEventListener as any) = function (
+    this: EventTarget,
     type: string,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     listener: (...args: any[]) => void,
@@ -38,8 +42,18 @@ export const { message, notification, dialog } = createDiscreteApi(
   { configProviderProps: { theme: darkTheme } }
 )
 
+const savedLocale = (localStorage.getItem('helm-locale') as 'zh' | 'en' | null) ?? 'zh'
+
+export const i18n = createI18n({
+  legacy: false,
+  locale: savedLocale,
+  fallbackLocale: 'en',
+  messages: { zh, en },
+})
+
 const app = createApp(App)
 app.use(createPinia())
 app.use(router)
 app.use(naive)
+app.use(i18n)
 app.mount('#app')

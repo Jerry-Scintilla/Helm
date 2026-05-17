@@ -2,11 +2,13 @@
 import { onMounted, ref, computed, h } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCorporationStore } from '@/stores/corporation'
+import { useI18n } from 'vue-i18n'
 import type { DataTableColumns } from 'naive-ui'
 import type { CorporationJournalEntry } from '@/stores/corporation'
 
 const route = useRoute()
 const corpStore = useCorporationStore()
+const { t } = useI18n()
 const corporationId = Number(route.params.id)
 const loading = ref(true)
 const selectedDivision = ref<number>(1)
@@ -16,7 +18,7 @@ onMounted(async () => {
   try {
     await corpStore.fetchWallet(corporationId)
     if (corpStore.wallets.length > 0) {
-      selectedDivision.value = corpStore.wallets[0].wallet_division
+      selectedDivision.value = corpStore.wallets[0]?.wallet_division ?? 1
     }
     await loadJournal()
   } finally {
@@ -30,11 +32,11 @@ async function loadJournal() {
 
 function fmt(n: number | null) {
   if (n === null) return '—'
-  return n.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 })
 }
 function fmtDate(dt: string | null) {
   if (!dt) return '—'
-  return new Date(dt).toLocaleString('zh-CN')
+  return new Date(dt).toLocaleString()
 }
 
 const selectedWallet = computed(() =>
@@ -42,20 +44,20 @@ const selectedWallet = computed(() =>
 )
 
 const journalCols: DataTableColumns<CorporationJournalEntry> = [
-  { title: '日期', key: 'date', width: 160, render: r => fmtDate(r.date) },
-  { title: '类型', key: 'ref_type', ellipsis: true },
-  { title: '描述', key: 'description', ellipsis: true },
+  { title: () => t('wallet.colDate'), key: 'date', width: 160, render: r => fmtDate(r.date) },
+  { title: () => t('wallet.colType'), key: 'ref_type', ellipsis: true },
+  { title: () => t('wallet.colDesc'), key: 'description', ellipsis: true },
   {
-    title: '金额', key: 'amount', width: 140, align: 'right',
+    title: () => t('wallet.colAmount'), key: 'amount', width: 140, align: 'right',
     render: r => h('span', { class: (r.amount ?? 0) >= 0 ? 'pos' : 'neg' }, fmt(r.amount)),
   },
-  { title: '余额', key: 'balance', width: 140, align: 'right', render: r => fmt(r.balance) },
+  { title: () => t('wallet.colBalance'), key: 'balance', width: 140, align: 'right', render: r => fmt(r.balance) },
 ]
 </script>
 
 <template>
   <div>
-    <h1 class="page-title h-serif">公司钱包</h1>
+    <h1 class="page-title h-serif">{{ t('corp.wallet') }}</h1>
 
     <n-spin v-if="loading" :size="24" style="display:block;margin:60px auto;" />
     <template v-else>
@@ -67,14 +69,14 @@ const journalCols: DataTableColumns<CorporationJournalEntry> = [
             :key="w.wallet_division"
             :value="w.wallet_division"
           >
-            分部 {{ w.wallet_division }}
+            {{ t('corp.division', { n: w.wallet_division }) }}
           </n-radio-button>
         </n-radio-group>
       </div>
 
       <!-- Balance card -->
       <div v-if="selectedWallet" class="balance-card">
-        <div class="balance-label">余额</div>
+        <div class="balance-label">{{ t('wallet.balance') }}</div>
         <div class="balance-value">{{ fmt(selectedWallet.balance) }} ISK</div>
       </div>
 
@@ -87,9 +89,9 @@ const journalCols: DataTableColumns<CorporationJournalEntry> = [
         :row-key="(r: CorporationJournalEntry) => r.journal_id"
       />
       <div class="pagination">
-        <n-button size="small" :disabled="journalPage <= 1" @click="journalPage--; loadJournal()">上一页</n-button>
-        <span class="page-num">第 {{ journalPage }} 页</span>
-        <n-button size="small" :disabled="corpStore.walletJournal.length < 50" @click="journalPage++; loadJournal()">下一页</n-button>
+        <n-button size="small" :disabled="journalPage <= 1" @click="journalPage--; loadJournal()">{{ t('common.prevPage') }}</n-button>
+        <span class="page-num">{{ t('common.page', { n: journalPage }) }}</span>
+        <n-button size="small" :disabled="corpStore.walletJournal.length < 50" @click="journalPage++; loadJournal()">{{ t('common.nextPage') }}</n-button>
       </div>
     </template>
   </div>

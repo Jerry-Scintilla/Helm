@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAdminStore } from '@/stores/admin'
 import { useMessage } from 'naive-ui'
 
 const adminStore = useAdminStore()
 const message = useMessage()
+const { t } = useI18n()
 const loading = ref(true)
 const showCreate = ref(false)
 const newRoleName = ref('')
@@ -24,12 +26,12 @@ async function createRole() {
   creating.value = true
   try {
     await adminStore.createRole(newRoleName.value.trim(), newRoleDesc.value.trim())
-    message.success('角色已创建')
+    message.success(t('admin.roles.created'))
     showCreate.value = false
     newRoleName.value = ''
     newRoleDesc.value = ''
   } catch {
-    message.error('创建失败')
+    message.error(t('common.createFailed'))
   } finally {
     creating.value = false
   }
@@ -38,9 +40,9 @@ async function createRole() {
 async function deleteRole(id: number) {
   try {
     await adminStore.deleteRole(id)
-    message.success('角色已删除')
+    message.success(t('admin.roles.deleted'))
   } catch {
-    message.error('删除失败')
+    message.error(t('common.deleteFailed'))
   }
 }
 </script>
@@ -50,16 +52,16 @@ async function deleteRole(id: number) {
     <n-spin v-if="loading" :size="24" style="display:block;margin:40px auto;" />
     <template v-else>
       <div class="section-header">
-        <span class="count-bar">{{ adminStore.roles.length }} 个角色</span>
-        <n-button size="small" type="primary" @click="showCreate = !showCreate">+ 新建角色</n-button>
+        <span class="count-bar">{{ t('admin.roles.count', { n: adminStore.roles.length }) }}</span>
+        <n-button size="small" type="primary" @click="showCreate = !showCreate">{{ t('admin.roles.createBtn') }}</n-button>
       </div>
 
       <n-collapse-transition :show="showCreate">
         <div class="create-form">
-          <n-input v-model:value="newRoleName" placeholder="角色名称" size="small" style="width:200px" />
-          <n-input v-model:value="newRoleDesc" placeholder="描述（可选）" size="small" style="width:240px" />
-          <n-button size="small" type="primary" :loading="creating" @click="createRole">创建</n-button>
-          <n-button size="small" @click="showCreate = false">取消</n-button>
+          <n-input v-model:value="newRoleName" :placeholder="t('admin.roles.namePlaceholder')" size="small" style="width:200px" />
+          <n-input v-model:value="newRoleDesc" :placeholder="t('admin.roles.descPlaceholder')" size="small" style="width:240px" />
+          <n-button size="small" type="primary" :loading="creating" @click="createRole">{{ t('common.create') }}</n-button>
+          <n-button size="small" @click="showCreate = false">{{ t('common.cancel') }}</n-button>
         </div>
       </n-collapse-transition>
 
@@ -69,13 +71,13 @@ async function deleteRole(id: number) {
             <span class="role-name">{{ role.name }}</span>
             <span class="role-desc">{{ role.description }}</span>
           </div>
-          <n-button size="tiny" type="error" ghost @click="deleteRole(role.id)">删除</n-button>
+          <n-button size="tiny" type="error" ghost @click="deleteRole(role.id)">{{ t('common.delete') }}</n-button>
         </div>
       </div>
 
       <!-- Permissions reference -->
       <div class="perm-section">
-        <div class="perm-title">内置权限</div>
+        <div class="perm-title">{{ t('admin.roles.permissions') }}</div>
         <div class="perm-grid">
           <div v-for="perm in adminStore.permissions" :key="perm.id" class="perm-tag">
             {{ perm.name }}

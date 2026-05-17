@@ -2,9 +2,11 @@
 import { onMounted, onUnmounted, ref, nextTick, watch } from 'vue'
 import { usePluginStore } from '@/stores/plugin'
 import { useMessage } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 
 const store = usePluginStore()
 const message = useMessage()
+const { t } = useI18n()
 const loading = ref(true)
 
 // Install modal
@@ -36,9 +38,9 @@ watch(() => store.installing, (cur, prev) => {
   if (prev && !cur && showInstall.value) {
     if (store.installSucceeded) {
       showInstall.value = false
-      message.success('插件安装成功')
+      message.success(t('admin.plugins.installSuccess'))
     } else {
-      message.error('插件安装失败，请查看日志')
+      message.error(t('admin.plugins.installFailed'))
     }
   }
 })
@@ -49,14 +51,14 @@ async function handleInstall() {
     try {
       await store.installByName(packageName.value.trim())
     } catch {
-      message.error('提交安装失败')
+      message.error(t('admin.plugins.submitFailed'))
     }
   } else {
     if (!whlFile.value) return
     try {
       await store.installByWhl(whlFile.value)
     } catch {
-      message.error('提交安装失败')
+      message.error(t('admin.plugins.submitFailed'))
     }
   }
 }
@@ -74,7 +76,7 @@ function openUninstall(name: string) {
 watch(() => store.uninstallInProgress, (cur, prev) => {
   if (prev && !cur && showUninstall.value) {
     showUninstall.value = false
-    message.success(`插件 ${uninstallTarget.value} 已卸载`)
+    message.success(t('admin.plugins.uninstallSuccess', { name: uninstallTarget.value }))
   }
 })
 
@@ -83,7 +85,7 @@ async function confirmUninstall() {
   try {
     await store.uninstallPlugin(uninstallTarget.value)
   } catch {
-    message.error('卸载失败')
+    message.error(t('admin.plugins.uninstallFailed'))
   } finally {
     uninstalling.value = false
   }
@@ -93,13 +95,13 @@ async function toggleEnable(name: string, enabled: boolean) {
   try {
     if (enabled) {
       await store.disablePlugin(name)
-      message.success('已禁用')
+      message.success(t('common.disable'))
     } else {
       await store.enablePlugin(name)
-      message.success('已启用')
+      message.success(t('common.enable'))
     }
   } catch (e: any) {
-    message.error(e.response?.data?.detail ?? '操作失败')
+    message.error(e.response?.data?.detail ?? t('common.operationFailed'))
   }
 }
 
@@ -115,14 +117,14 @@ function statusColor(status: string) {
 }
 
 function statusLabel(status: string) {
-  const map: Record<string, string> = {
-    enabled: '已启用',
-    disabled: '已禁用',
-    error: '错误',
-    installed: '已安装',
-    uninstalled: '已卸载',
+  const keys: Record<string, string> = {
+    enabled: 'admin.plugins.statusEnabled',
+    disabled: 'admin.plugins.statusDisabled',
+    error: 'admin.plugins.statusError',
+    installed: 'admin.plugins.statusInstalled',
+    uninstalled: 'admin.plugins.statusUninstalled',
   }
-  return map[status] ?? status
+  return keys[status] ? t(keys[status] as any) : status
 }
 
 // Auto-scroll log to bottom
@@ -139,8 +141,8 @@ function scrollLog() {
   <div>
     <!-- Header -->
     <div class="section-header">
-      <span class="count-bar">{{ store.plugins.length }} 个插件已安装</span>
-      <button class="btn-primary" @click="showInstall = true">+ 安装插件</button>
+      <span class="count-bar">{{ t('admin.plugins.count', { n: store.plugins.length }) }}</span>
+      <button class="btn-primary" @click="showInstall = true">{{ t('admin.plugins.install') }}</button>
     </div>
 
     <n-spin v-if="loading" :size="24" style="display:block;margin:40px auto;" />
@@ -148,19 +150,19 @@ function scrollLog() {
     <!-- Plugin cards -->
     <div v-if="!loading" class="plugin-grid">
       <div v-if="store.plugins.length === 0" class="empty-hint">
-        暂无已安装插件
+        {{ t('admin.plugins.empty') }}
       </div>
       <div v-for="p in store.plugins" :key="p.id" class="plugin-card">
         <div class="plugin-top">
           <div class="plugin-info">
             <div class="plugin-name">{{ p.name }}</div>
-            <div class="plugin-meta">v{{ p.version }} · {{ p.author || '未知作者' }}</div>
+            <div class="plugin-meta">v{{ p.version }} · {{ p.author || t('admin.plugins.unknownAuthor') }}</div>
           </div>
           <span class="status-tag" :style="{ color: statusColor(p.status), background: `${statusColor(p.status)}18` }">
             {{ statusLabel(p.status) }}
           </span>
         </div>
-        <div class="plugin-desc">{{ p.description || '无描述' }}</div>
+        <div class="plugin-desc">{{ p.description || t('admin.plugins.noDesc') }}</div>
         <div v-if="p.error_message" class="plugin-error">{{ p.error_message }}</div>
         <div class="plugin-actions">
           <button
@@ -168,18 +170,18 @@ function scrollLog() {
             class="btn-sm"
             @click="toggleEnable(p.name, p.is_enabled)"
           >
-            {{ p.is_enabled ? '禁用' : '启用' }}
+            {{ p.is_enabled ? t('common.disable') : t('common.enable') }}
           </button>
-          <button class="btn-sm btn-danger" @click="openUninstall(p.name)">卸载</button>
+          <button class="btn-sm btn-danger" @click="openUninstall(p.name)">{{ t('admin.plugins.uninstall') }}</button>
         </div>
       </div>
     </div>
 
     <!-- Install modal -->
-    <n-modal v-model:show="showInstall" preset="card" title="安装插件" style="width:520px;max-width:95vw">
+    <n-modal v-model:show="showInstall" preset="card" :title="t('admin.plugins.installModalTitle')" style="width:520px;max-width:95vw">
       <div class="install-tabs">
-        <button :class="['tab-btn', installTab === 'pypi' && 'active']" @click="installTab = 'pypi'">PyPI 包名</button>
-        <button :class="['tab-btn', installTab === 'whl' && 'active']" @click="installTab = 'whl'">上传 .whl</button>
+        <button :class="['tab-btn', installTab === 'pypi' && 'active']" @click="installTab = 'pypi'">{{ t('admin.plugins.pypiTab') }}</button>
+        <button :class="['tab-btn', installTab === 'whl' && 'active']" @click="installTab = 'whl'">{{ t('admin.plugins.whlTab') }}</button>
       </div>
 
       <div v-if="installTab === 'pypi'" class="tab-body">
@@ -188,34 +190,34 @@ function scrollLog() {
       <div v-else class="tab-body">
         <label class="file-drop">
           <input type="file" accept=".whl" style="display:none" @change="onFileChange" />
-          <span v-if="!whlFile" class="file-hint">点击或拖放 .whl 文件到此处</span>
+          <span v-if="!whlFile" class="file-hint">{{ t('admin.plugins.dropWhl') }}</span>
           <span v-else class="file-name">{{ whlFile.name }}</span>
         </label>
       </div>
 
       <!-- Install log -->
       <div v-if="store.installLog.length > 0 || store.installing" class="log-wrap">
-        <div class="log-label">安装日志</div>
+        <div class="log-label">{{ t('admin.plugins.installLog') }}</div>
         <pre ref="logContainer" class="log-pre" @vue:updated="scrollLog">{{ store.installLog.join('\n') }}</pre>
       </div>
 
       <template #footer>
         <div style="display:flex;justify-content:flex-end;gap:8px">
-          <n-button @click="showInstall = false">关闭</n-button>
+          <n-button @click="showInstall = false">{{ t('common.close') }}</n-button>
           <button class="btn-primary" :disabled="store.installing" @click="handleInstall">
-            {{ store.installing ? '安装中…' : '开始安装' }}
+            {{ store.installing ? t('admin.plugins.installing') : t('admin.plugins.startInstall') }}
           </button>
         </div>
       </template>
     </n-modal>
 
     <!-- Uninstall confirm modal -->
-    <n-modal v-model:show="showUninstall" preset="card" title="确认卸载" style="width:400px;max-width:95vw">
-      <p class="confirm-text">确定要卸载插件 <strong>{{ uninstallTarget }}</strong> 吗？此操作将回退数据库迁移并从虚拟环境中移除该插件包，无法撤销。</p>
+    <n-modal v-model:show="showUninstall" preset="card" :title="t('admin.plugins.confirmUninstall')" style="width:400px;max-width:95vw">
+      <p class="confirm-text" v-html="t('admin.plugins.uninstallWarning', { name: `<strong>${uninstallTarget}</strong>` })" />
       <template #footer>
         <div style="display:flex;justify-content:flex-end;gap:8px">
-          <n-button @click="showUninstall = false">取消</n-button>
-          <n-button type="error" :loading="uninstalling" @click="confirmUninstall">确认卸载</n-button>
+          <n-button @click="showUninstall = false">{{ t('common.cancel') }}</n-button>
+          <n-button type="error" :loading="uninstalling" @click="confirmUninstall">{{ t('admin.plugins.confirmUninstallBtn') }}</n-button>
         </div>
       </template>
     </n-modal>
@@ -340,5 +342,5 @@ function scrollLog() {
 }
 
 .confirm-text { font-size: 0.9rem; color: #b0aea5; line-height: 1.6; }
-.confirm-text strong { color: #faf9f5; }
+.confirm-text :deep(strong) { color: #faf9f5; }
 </style>

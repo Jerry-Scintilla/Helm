@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAdminStore } from '@/stores/admin'
 import { useMessage } from 'naive-ui'
 
 const adminStore = useAdminStore()
 const message = useMessage()
+const { t } = useI18n()
 const loading = ref(true)
 const showCreate = ref(false)
 const newName = ref('')
@@ -29,13 +31,13 @@ async function createBucket() {
   creating.value = true
   try {
     await adminStore.createBucket(newName.value.trim(), newCapacity.value, newDesc.value.trim())
-    message.success('Bucket 已创建')
+    message.success(t('admin.buckets.created'))
     showCreate.value = false
     newName.value = ''
     newCapacity.value = 100
     newDesc.value = ''
   } catch {
-    message.error('创建失败')
+    message.error(t('common.createFailed'))
   } finally {
     creating.value = false
   }
@@ -55,10 +57,10 @@ function healthColor(health: string) {
 <template>
   <div>
     <div class="section-header">
-      <span class="count-bar">{{ adminStore.buckets.length }} 个 Bucket（每 30s 自动刷新）</span>
+      <span class="count-bar">{{ t('admin.buckets.count', { n: adminStore.buckets.length }) }}</span>
       <div style="display:flex;gap:8px">
-        <n-button size="small" @click="adminStore.fetchBuckets()">刷新</n-button>
-        <n-button size="small" type="primary" @click="showCreate = !showCreate">+ 新建</n-button>
+        <n-button size="small" @click="adminStore.fetchBuckets()">{{ t('common.refresh') }}</n-button>
+        <n-button size="small" type="primary" @click="showCreate = !showCreate">{{ t('common.createNew') }}</n-button>
       </div>
     </div>
 
@@ -66,11 +68,11 @@ function healthColor(health: string) {
 
     <n-collapse-transition :show="showCreate">
       <div class="create-form">
-        <n-input v-model:value="newName" placeholder="名称" size="small" style="width:160px" />
+        <n-input v-model:value="newName" :placeholder="t('common.name')" size="small" style="width:160px" />
         <n-input-number v-model:value="newCapacity" :min="1" :max="10000" size="small" style="width:120px" />
-        <n-input v-model:value="newDesc" placeholder="描述（可选）" size="small" style="width:200px" />
-        <n-button size="small" type="primary" :loading="creating" @click="createBucket">创建</n-button>
-        <n-button size="small" @click="showCreate = false">取消</n-button>
+        <n-input v-model:value="newDesc" :placeholder="t('admin.roles.descPlaceholder')" size="small" style="width:200px" />
+        <n-button size="small" type="primary" :loading="creating" @click="createBucket">{{ t('common.create') }}</n-button>
+        <n-button size="small" @click="showCreate = false">{{ t('common.cancel') }}</n-button>
       </div>
     </n-collapse-transition>
 
@@ -85,24 +87,24 @@ function healthColor(health: string) {
         </div>
         <div class="bucket-stats">
           <div class="bstat">
-            <span class="bstat-label">Token 数</span>
+            <span class="bstat-label">{{ t('admin.buckets.tokenCount') }}</span>
             <span class="bstat-val">{{ bucket.state.token_count }} / {{ bucket.capacity }}</span>
           </div>
           <div class="bstat">
-            <span class="bstat-label">活跃任务</span>
+            <span class="bstat-label">{{ t('admin.buckets.activeTasks') }}</span>
             <span class="bstat-val">{{ bucket.state.active_task_count }}</span>
           </div>
           <div class="bstat">
-            <span class="bstat-label">状态</span>
+            <span class="bstat-label">{{ t('common.status') }}</span>
             <span class="bstat-val" :style="{ color: healthColor(bucket.state.health) }">{{ bucket.state.health }}</span>
           </div>
         </div>
         <div class="bucket-footer">
           <span :class="bucket.is_active ? 'tag-active' : 'tag-inactive'">
-            {{ bucket.is_active ? '活跃' : '停用' }}
+            {{ bucket.is_active ? t('common.active') : t('common.deactivated') }}
           </span>
           <span class="bucket-meta">
-            {{ bucket.state.last_run_at ? new Date(bucket.state.last_run_at).toLocaleString('zh-CN') : '从未运行' }}
+            {{ bucket.state.last_run_at ? new Date(bucket.state.last_run_at).toLocaleString() : t('common.neverRun') }}
           </span>
         </div>
       </div>

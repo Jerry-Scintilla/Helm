@@ -2,16 +2,18 @@
 import { onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAllianceStore } from '@/stores/alliance'
+import { useI18n } from 'vue-i18n'
 
 const route = useRoute()
 const allianceStore = useAllianceStore()
+const { t } = useI18n()
 const allianceId = Number(route.params.id)
 
 onMounted(() => allianceStore.fetchInfo(allianceId))
 
 function fmtDate(dt: string | null) {
   if (!dt) return '—'
-  return new Date(dt).toLocaleDateString('zh-CN')
+  return new Date(dt).toLocaleDateString()
 }
 </script>
 
@@ -30,27 +32,27 @@ function fmtDate(dt: string | null) {
         <div>
           <h1 class="alliance-name h-serif">{{ allianceStore.allianceInfo.name }}</h1>
           <div class="alliance-ticker">[{{ allianceStore.allianceInfo.ticker }}]</div>
-          <div class="updated">更新于 {{ fmtDate(allianceStore.allianceInfo.updated_at) }}</div>
+          <div class="updated">{{ t('alliance.updatedAt') }} {{ fmtDate(allianceStore.allianceInfo.updated_at) }}</div>
         </div>
       </div>
 
       <div class="info-grid">
         <div class="info-card">
-          <div class="info-label">成员公司数</div>
+          <div class="info-label">{{ t('alliance.memberCorps') }}</div>
           <div class="info-value">{{ allianceStore.allianceInfo.member_corporations.length }}</div>
         </div>
         <div class="info-card">
-          <div class="info-label">执行公司 ID</div>
+          <div class="info-label">{{ t('alliance.executorCorp') }}</div>
           <div class="info-value">{{ allianceStore.allianceInfo.executor_corp_id ?? '—' }}</div>
         </div>
         <div class="info-card">
-          <div class="info-label">创建公司 ID</div>
+          <div class="info-label">{{ t('alliance.creatorCorp') }}</div>
           <div class="info-value">{{ allianceStore.allianceInfo.creator_corp_id ?? '—' }}</div>
         </div>
       </div>
 
       <section>
-        <div class="section-label">成员公司列表（{{ allianceStore.allianceInfo.member_corporations.length }}）</div>
+        <div class="section-label">{{ t('alliance.memberList', { n: allianceStore.allianceInfo.member_corporations.length }) }}</div>
         <div class="corp-grid">
           <div
             v-for="corpId in allianceStore.allianceInfo.member_corporations"

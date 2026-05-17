@@ -1,6 +1,18 @@
 <script setup lang="ts">
-import { darkTheme, type GlobalThemeOverrides } from 'naive-ui'
+import { computed } from 'vue'
+import { darkTheme, zhCN, enUS, type GlobalThemeOverrides } from 'naive-ui'
 import { RouterView } from 'vue-router'
+import { useLocaleStore } from '@/stores/locale'
+import { useI18n } from 'vue-i18n'
+
+const localeStore = useLocaleStore()
+const { locale } = useI18n()
+
+const naiveLocale = computed(() => localeStore.locale === 'zh' ? zhCN : enUS)
+
+// Keep vue-i18n in sync with locale store
+import { watch } from 'vue'
+watch(() => localeStore.locale, (lang) => { locale.value = lang }, { immediate: true })
 
 const themeOverrides: GlobalThemeOverrides = {
   common: {
@@ -103,7 +115,7 @@ const themeOverrides: GlobalThemeOverrides = {
 </script>
 
 <template>
-  <n-config-provider :theme="darkTheme" :theme-overrides="themeOverrides">
+  <n-config-provider :theme="darkTheme" :theme-overrides="themeOverrides" :locale="naiveLocale">
     <n-global-style />
     <n-message-provider>
       <n-dialog-provider>

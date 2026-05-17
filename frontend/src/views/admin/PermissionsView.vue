@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAdminStore } from '@/stores/admin'
 
 const adminStore = useAdminStore()
+const { t } = useI18n()
 const loading = ref(true)
 
 onMounted(async () => {
@@ -18,12 +20,12 @@ onMounted(async () => {
   <div>
     <n-spin v-if="loading" :size="24" style="display:block;margin:40px auto;" />
     <template v-else>
-      <div class="count-bar">{{ adminStore.permissions.length }} 个内置权限</div>
+      <div class="count-bar">{{ t('admin.permissions.count', { n: adminStore.permissions.length }) }}</div>
       <div class="perm-table">
         <div class="perm-header perm-row">
           <span>ID</span>
-          <span>名称</span>
-          <span>作用域类型</span>
+          <span>{{ t('common.name') }}</span>
+          <span>{{ t('admin.permissions.scopeType') }}</span>
         </div>
         <div
           v-for="perm in adminStore.permissions"

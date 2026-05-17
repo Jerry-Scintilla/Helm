@@ -2,11 +2,13 @@
 import { onMounted, ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCharacterStore } from '@/stores/character'
+import { useI18n } from 'vue-i18n'
 import { resolveSdeName } from '@/utils/sde'
 import type { SkillGroup } from '@/stores/character'
 
 const route = useRoute()
 const charStore = useCharacterStore()
+const { t } = useI18n()
 const characterId = Number(route.params.id)
 
 const searchQuery = ref('')
@@ -28,7 +30,7 @@ function fmtSp(sp: number) {
 
 function fmtDate(dt: string | null) {
   if (!dt) return '—'
-  return new Date(dt).toLocaleString('zh-CN')
+  return new Date(dt).toLocaleString()
 }
 
 function queueProgress(entry: { start_date: string | null; finish_date: string | null }) {
@@ -52,7 +54,6 @@ function groupProgress(g: SkillGroup): number {
   return Math.round((total / (g.skills.length * 5)) * 100)
 }
 
-// 过滤后的技能组
 const filteredGroups = computed<SkillGroup[]>(() => {
   if (!charStore.skills) return []
   const q = searchQuery.value.trim().toLowerCase()
@@ -66,7 +67,6 @@ const filteredGroups = computed<SkillGroup[]>(() => {
         skills = skills.filter(s =>
           resolveSdeName(s.skill_name, '').toLowerCase().includes(q)
         )
-        // 也匹配组名
         const groupMatches = groupLabel(g).toLowerCase().includes(q)
         if (groupMatches && skills.length === 0) skills = g.skills
       }
@@ -85,11 +85,11 @@ function toggleGroup(gid: number) {
   expandedGroup.value = expandedGroup.value === gid ? null : gid
 }
 
-const filterOptions = [
-  { label: '全部技能', value: 'all' },
-  { label: '已满级', value: 'maxed' },
-  { label: '未满级', value: 'unmaxed' },
-]
+const filterOptions = computed(() => [
+  { label: t('skills.filter.all'), value: 'all' },
+  { label: t('skills.filter.maxed'), value: 'maxed' },
+  { label: t('skills.filter.unmaxed'), value: 'unmaxed' },
+])
 
 const totalSkillCount = computed(() =>
   charStore.skills?.groups.reduce((n, g) => n + g.skills.length, 0) ?? 0
@@ -118,9 +118,9 @@ function onLeave(el: Element) {
   <div>
     <div class="page-header">
       <div>
-        <h1 class="page-title h-serif">技能</h1>
+        <h1 class="page-title h-serif">{{ t('nav.skills') }}</h1>
         <div v-if="charStore.skills" class="sp-sub">
-          {{ charStore.skills.total_sp.toLocaleString() }} 总技能点 · {{ totalSkillCount }} 个已学技能
+          {{ t('skills.totalSp', { n: charStore.skills.total_sp.toLocaleString() }) }} · {{ t('skills.trainedCount', { n: totalSkillCount }) }}
         </div>
       </div>
 
@@ -133,7 +133,7 @@ function onLeave(el: Element) {
         />
         <n-input
           v-model:value="searchQuery"
-          placeholder="搜索"
+          :placeholder="t('common.search')"
           size="small"
           clearable
           style="width:160px"
@@ -145,9 +145,9 @@ function onLeave(el: Element) {
       </div>
     </div>
 
-    <!-- 技能队列 -->
+    <!-- Skill queue -->
     <section v-if="charStore.skillQueue.length > 0" class="section">
-      <h2 class="section-title">技能队列</h2>
+      <h2 class="section-title">{{ t('skills.queue') }}</h2>
       <div class="queue-list">
         <div v-for="entry in charStore.skillQueue" :key="entry.queue_position" class="queue-item">
           <div class="queue-main">
@@ -170,10 +170,10 @@ function onLeave(el: Element) {
       </div>
     </section>
 
-    <!-- 技能组 -->
+    <!-- Skill groups -->
     <section class="section">
-      <div v-if="!charStore.skills" class="muted">加载中…</div>
-      <div v-else-if="filteredGroups.length === 0" class="muted">未找到匹配技能</div>
+      <div v-if="!charStore.skills" class="muted">{{ t('common.loading') }}</div>
+      <div v-else-if="filteredGroups.length === 0" class="muted">{{ t('skills.notFound') }}</div>
       <div v-else class="group-grid">
         <div
           v-for="group in filteredGroups"
@@ -181,19 +181,16 @@ function onLeave(el: Element) {
           class="group-card"
           :class="{ expanded: isExpanded(group.group_id) }"
         >
-          <!-- 组标题行 -->
           <div class="group-header" @click="toggleGroup(group.group_id)">
             <span class="group-name">
               {{ groupLabel(group) }}<span v-if="isGroupAllMaxed(group)" class="maxed-mark">*</span>
             </span>
             <span class="group-count">{{ group.skills.length }}</span>
           </div>
-          <!-- 训练进度条 -->
           <div class="group-progress-track">
             <div class="group-progress-fill" :style="{ width: groupProgress(group) + '%' }" />
           </div>
 
-          <!-- 展开后的技能列表 -->
           <Transition @enter="onEnter" @after-enter="onAfterEnter" @leave="onLeave">
           <div v-if="isExpanded(group.group_id)" class="skill-list">
             <div
@@ -248,7 +245,6 @@ function onLeave(el: Element) {
 }
 .muted { color: #5e5d59; font-size: 0.9rem; }
 
-/* 队列 */
 .queue-list { display: flex; flex-direction: column; gap: 8px; }
 .queue-item {
   background: #1e1e1c; border: 1px solid #30302e;
@@ -260,7 +256,6 @@ function onLeave(el: Element) {
 .queue-level { font-size: 0.85rem; color: #c96442; }
 .queue-finish { font-size: 0.78rem; color: #87867f; }
 
-/* 技能组网格 — 3 列 */
 .group-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -268,7 +263,6 @@ function onLeave(el: Element) {
   align-items: start;
 }
 
-/* 技能组卡片 */
 .group-card {
   background: #1a1a18;
   border: 1px solid #2e2e2c;
@@ -306,7 +300,6 @@ function onLeave(el: Element) {
   text-align: right;
 }
 
-/* 进度条 */
 .group-progress-track {
   height: 2px;
   background: #2a2a28;
@@ -317,7 +310,6 @@ function onLeave(el: Element) {
   transition: width 0.3s ease;
 }
 
-/* 技能列表 */
 .skill-list {
   border-top: 1px solid #2e2e2c;
   transition: height 0.22s ease;

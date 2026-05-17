@@ -8,7 +8,7 @@ from app.core.permissions import require_permission
 from app.models.sde import SDEType
 from app.models.user import User
 from app.services.market import get_configured_region_id, get_market_prices
-from app.services.sde import resolve_type_names
+from app.services.sde import resolve_type_names_all_locales
 
 router = APIRouter(prefix="/api/v1/market", tags=["market"])
 
@@ -35,7 +35,7 @@ async def market_prices(
 
     effective_region = region_id if region_id is not None else await get_configured_region_id()
     prices = await get_market_prices(parsed_ids, region_id=effective_region)
-    name_map = await resolve_type_names(parsed_ids, db, locale="zh")
+    name_map = await resolve_type_names_all_locales(parsed_ids, db)
 
     return {
         "region_id": effective_region,

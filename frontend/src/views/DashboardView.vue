@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import api from '@/api'
 import { useAuthStore } from '@/stores/auth'
 
@@ -16,6 +17,7 @@ interface CharacterSummary {
 
 const router = useRouter()
 const auth = useAuthStore()
+const { t } = useI18n()
 const characters = ref<CharacterSummary[]>([])
 const loading = ref(true)
 
@@ -61,17 +63,17 @@ async function unbind(char: CharacterSummary) {
 <template>
   <div>
     <div class="page-header">
-      <h1 class="page-title h-serif">Dashboard</h1>
-      <n-button size="small" type="primary" @click="addCharacter">+ 添加角色</n-button>
+      <h1 class="page-title h-serif">{{ t('nav.dashboard') }}</h1>
+      <n-button size="small" type="primary" @click="addCharacter">{{ t('dashboard.addCharacter') }}</n-button>
     </div>
 
     <n-spin v-if="loading" :size="24" class="spinner" />
 
     <div v-else-if="characters.length === 0" class="empty-state">
       <div class="empty-icon">◈</div>
-      <p class="empty-title">尚无已绑定角色</p>
-      <p class="empty-sub">通过 EVE SSO 登录以绑定你的 EVE Online 角色</p>
-      <n-button type="primary" style="margin-top:16px" @click="addCharacter">绑定 EVE 角色</n-button>
+      <p class="empty-title">{{ t('dashboard.noCharacters') }}</p>
+      <p class="empty-sub">{{ t('dashboard.noCharactersSub') }}</p>
+      <n-button type="primary" style="margin-top:16px" @click="addCharacter">{{ t('dashboard.bindCharacter') }}</n-button>
     </div>
 
     <div v-else class="character-grid">
@@ -92,7 +94,7 @@ async function unbind(char: CharacterSummary) {
           <div class="char-info">
             <div class="char-name-row">
               <span class="char-name">{{ char.character_name }}</span>
-              <span v-if="char.is_primary" class="primary-badge">◈ 主角色</span>
+              <span v-if="char.is_primary" class="primary-badge">{{ t('dashboard.primaryBadge') }}</span>
             </div>
             <div class="char-meta">
               <span v-if="char.corporation_name" class="meta-tag">{{ char.corporation_name }}</span>
@@ -110,14 +112,14 @@ async function unbind(char: CharacterSummary) {
             class="action-btn action-btn--primary"
             @click.stop="setPrimary(char)"
           >
-            设为主角色
+            {{ t('dashboard.setPrimary') }}
           </button>
           <button
             v-if="!char.is_primary"
             class="action-btn action-btn--danger"
             @click.stop="unbind(char)"
           >
-            解绑
+            {{ t('dashboard.unbind') }}
           </button>
         </div>
       </div>

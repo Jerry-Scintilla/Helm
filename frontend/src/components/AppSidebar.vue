@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, h, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import type { MenuOption } from 'naive-ui'
 import { useAuthStore } from '@/stores/auth'
 import { usePluginStore } from '@/stores/plugin'
@@ -9,6 +10,7 @@ const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const pluginStore = usePluginStore()
+const { t } = useI18n()
 const collapsed = ref(false)
 
 function icon(emoji: string) {
@@ -30,7 +32,7 @@ const menuOptions = computed<MenuOption[]>(() => {
   const corId = corpId.value
   const alId = allianceId.value
   const items: MenuOption[] = [
-    { label: 'Dashboard', key: '/dashboard', icon: icon('⬡') },
+    { label: t('nav.dashboard'), key: '/dashboard', icon: icon('⬡') },
   ]
 
   if (cid) {
@@ -48,16 +50,16 @@ const menuOptions = computed<MenuOption[]>(() => {
       )
 
     items.push({
-      label: '角色',
+      label: t('nav.character'),
       key: 'char-group',
       icon: icon('◈'),
       children: [
-        { label: '总览', key: `/character/${cid}/overview`, icon: icon('·') },
-        { label: '钱包', key: `/character/${cid}/wallet`, icon: icon('·') },
-        { label: '技能', key: `/character/${cid}/skills`, icon: icon('·') },
-        { label: '资产', key: `/character/${cid}/assets`, icon: icon('·') },
-        { label: '邮件', key: `/character/${cid}/mail`, icon: icon('·') },
-        { label: '通知', key: `/character/${cid}/notifications`, icon: icon('·') },
+        { label: t('nav.overview'), key: `/character/${cid}/overview`, icon: icon('·') },
+        { label: t('nav.wallet'), key: `/character/${cid}/wallet`, icon: icon('·') },
+        { label: t('nav.skills'), key: `/character/${cid}/skills`, icon: icon('·') },
+        { label: t('nav.assets'), key: `/character/${cid}/assets`, icon: icon('·') },
+        { label: t('nav.mail'), key: `/character/${cid}/mail`, icon: icon('·') },
+        { label: t('nav.notifications'), key: `/character/${cid}/notifications`, icon: icon('·') },
         ...submoduleItems,
       ],
     })
@@ -65,30 +67,29 @@ const menuOptions = computed<MenuOption[]>(() => {
 
   if (corId) {
     items.push({
-      label: '公司',
+      label: t('nav.corporation'),
       key: 'corp-group',
       icon: icon('◉'),
       children: [
-        { label: '总览', key: `/corporation/${corId}/overview`, icon: icon('·') },
-        { label: '成员', key: `/corporation/${corId}/members`, icon: icon('·') },
-        { label: '钱包', key: `/corporation/${corId}/wallet`, icon: icon('·') },
-        { label: '资产', key: `/corporation/${corId}/assets`, icon: icon('·') },
+        { label: t('nav.overview'), key: `/corporation/${corId}/overview`, icon: icon('·') },
+        { label: t('nav.members'), key: `/corporation/${corId}/members`, icon: icon('·') },
+        { label: t('nav.wallet'), key: `/corporation/${corId}/wallet`, icon: icon('·') },
+        { label: t('nav.assets'), key: `/corporation/${corId}/assets`, icon: icon('·') },
       ],
     })
   }
 
   if (alId) {
     items.push({
-      label: '联盟',
+      label: t('nav.alliance'),
       key: 'alliance-group',
       icon: icon('◎'),
       children: [
-        { label: '总览', key: `/alliance/${alId}/overview`, icon: icon('·') },
+        { label: t('nav.overview'), key: `/alliance/${alId}/overview`, icon: icon('·') },
       ],
     })
   }
 
-  
   // Plugin sidebar items (from enabled plugins that declare sidebar_items in meta)
   const pluginItems = pluginStore.plugins
     .filter(p => p.is_enabled && p.meta?.sidebar_items?.length)

@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
+import { useLocaleStore } from '@/stores/locale'
 import api from '@/api'
 
 const router = useRouter()
 const auth = useAuthStore()
+const localeStore = useLocaleStore()
+const { t } = useI18n()
 
 interface Character {
   character_id: number
@@ -27,25 +31,34 @@ async function handleLogout() {
 }
 
 const adminMenuOptions = computed(() => [
-  { label: '系统', key: '/admin/system' },
-  { label: '用户', key: '/admin/users' },
-  { label: '角色权限', key: '/admin/roles' },
-  { label: 'SDE', key: '/admin/sde' },
-  { label: 'Buckets', key: '/admin/buckets' },
-  { label: 'API Token', key: '/admin/tokens' },
-  { label: '插件', key: '/admin/plugins' },
-  { label: '任务', key: '/admin/tasks' },
-  { label: '市场', key: '/admin/market' },
+  { label: t('admin.tabs.system'), key: '/admin/system' },
+  { label: t('admin.tabs.users'), key: '/admin/users' },
+  { label: t('admin.tabs.roles'), key: '/admin/roles' },
+  { label: t('admin.tabs.sde'), key: '/admin/sde' },
+  { label: t('admin.tabs.buckets'), key: '/admin/buckets' },
+  { label: t('admin.tabs.tokens'), key: '/admin/tokens' },
+  { label: t('admin.tabs.plugins'), key: '/admin/plugins' },
+  { label: t('admin.tabs.tasks'), key: '/admin/tasks' },
+  { label: t('admin.tabs.market'), key: '/admin/market' },
 ])
 
 function handleAdminMenu(key: string) {
   router.push(key)
 }
 
-const userMenuOptions = [{ label: '退出登录', key: 'logout' }]
+const userMenuOptions = computed(() => [{ label: t('header.logout'), key: 'logout' }])
 
 function handleUserMenu(key: string) {
   if (key === 'logout') handleLogout()
+}
+
+const langOptions = [
+  { label: '中文', key: 'zh' },
+  { label: 'English', key: 'en' },
+]
+
+function handleLangSelect(key: string) {
+  localeStore.setLocale(key as 'zh' | 'en')
 }
 </script>
 
@@ -55,6 +68,14 @@ function handleUserMenu(key: string) {
       <slot name="title" />
     </div>
     <div class="header-right">
+      <!-- Language dropdown -->
+      <n-dropdown trigger="click" :options="langOptions" @select="handleLangSelect">
+        <button class="lang-btn">
+          {{ localeStore.locale === 'zh' ? '中文' : 'English' }}
+          <span class="caret">▾</span>
+        </button>
+      </n-dropdown>
+
       <!-- Admin menu (superuser only) -->
       <n-dropdown
         v-if="auth.isSuperuser"
@@ -62,7 +83,7 @@ function handleUserMenu(key: string) {
         :options="adminMenuOptions"
         @select="handleAdminMenu"
       >
-        <button class="icon-btn" title="管理后台">⚙</button>
+        <button class="icon-btn" :title="t('header.adminTitle')">⚙</button>
       </n-dropdown>
 
       <!-- Character switcher -->
@@ -96,7 +117,7 @@ function handleUserMenu(key: string) {
 
       <!-- User menu -->
       <n-dropdown trigger="click" :options="userMenuOptions" @select="handleUserMenu">
-        <button class="icon-btn" title="用户菜单">⬡</button>
+        <button class="icon-btn" :title="t('header.userMenu')">⬡</button>
       </n-dropdown>
     </div>
   </div>
@@ -160,4 +181,22 @@ function handleUserMenu(key: string) {
   transition: border-color 0.15s, color 0.15s;
 }
 .icon-btn:hover { border-color: #5e5d59; color: #b0aea5; }
+.lang-btn {
+  background: none;
+  border: 1px solid #30302e;
+  color: #87867f;
+  padding: 0 10px;
+  height: 32px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.lang-btn:hover { border-color: #5e5d59; color: #b0aea5; }
+.lang-btn .caret { font-size: 0.6rem; color: #5e5d59; }
 </style>

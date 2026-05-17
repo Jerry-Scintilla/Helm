@@ -2,9 +2,11 @@
 import { onMounted, ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCharacterStore } from '@/stores/character'
+import { useI18n } from 'vue-i18n'
 
 const route = useRoute()
 const charStore = useCharacterStore()
+const { t } = useI18n()
 const characterId = Number(route.params.id)
 const loading = ref(true)
 const unreadOnly = ref(false)
@@ -32,32 +34,32 @@ const filtered = computed(() => {
 
 function fmtDate(dt: string | null) {
   if (!dt) return '—'
-  return new Date(dt).toLocaleString('zh-CN')
+  return new Date(dt).toLocaleString()
 }
 </script>
 
 <template>
   <div>
     <div class="header-row">
-      <h1 class="page-title h-serif">通知</h1>
+      <h1 class="page-title h-serif">{{ t('nav.notifications') }}</h1>
       <div class="filters">
         <n-switch v-model:value="unreadOnly" size="small">
-          <template #checked>仅未读</template>
-          <template #unchecked>全部</template>
+          <template #checked>{{ t('notif.unreadOnly') }}</template>
+          <template #unchecked>{{ t('notif.all') }}</template>
         </n-switch>
         <n-select
           v-model:value="filterType"
-          :options="[{ label: '全部类型', value: null }, ...allTypes.map(t => ({ label: t, value: t }))]"
+          :options="[{ label: t('notif.allTypes'), value: null }, ...allTypes.map(tp => ({ label: tp, value: tp }))]"
           size="small"
           style="width:200px"
           clearable
-          placeholder="筛选类型"
+          :placeholder="t('notif.filterType')"
         />
       </div>
     </div>
 
     <n-spin v-if="loading" :size="24" style="display:block;margin:60px auto;" />
-    <div v-else-if="filtered.length === 0" class="muted">暂无通知</div>
+    <div v-else-if="filtered.length === 0" class="muted">{{ t('notif.empty') }}</div>
 
     <div v-else class="notification-list">
       <div
@@ -70,7 +72,7 @@ function fmtDate(dt: string | null) {
           <span class="notif-type">{{ notif.type }}</span>
           <span v-if="notif.sender_name" class="notif-sender">{{ notif.sender_name }}</span>
           <span class="notif-date">{{ fmtDate(notif.timestamp) }}</span>
-          <n-tag v-if="!notif.is_read" size="tiny" type="warning" style="margin-left:8px">未读</n-tag>
+          <n-tag v-if="!notif.is_read" size="tiny" type="warning" style="margin-left:8px">{{ t('notif.unread') }}</n-tag>
         </div>
         <div v-if="notif.text" class="notif-text">{{ notif.text.slice(0, 200) }}{{ notif.text.length > 200 ? '…' : '' }}</div>
       </div>

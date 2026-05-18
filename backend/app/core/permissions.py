@@ -109,6 +109,17 @@ async def seed_permissions(db: AsyncSession) -> None:
         if existing.scalar_one_or_none() is None:
             db.add(RolePermission(role_id=player_role.id, permission_id=perm.id))
 
+    # Backfill: assign player role to any existing users who don't have it yet
+    users_without_role = await db.execute(
+        select(User.id).where(
+            ~User.id.in_(
+                select(UserRole.user_id).where(UserRole.role_id == player_role.id)
+            )
+        )
+    )
+    for (uid,) in users_without_role.fetchall():
+        db.add(UserRole(user_id=uid, role_id=player_role.id))
+
     await db.commit()
 
 

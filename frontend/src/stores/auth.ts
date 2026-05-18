@@ -16,6 +16,12 @@ export const useAuthStore = defineStore('auth', () => {
   )
   const primaryCharacterName = ref<string | null>(localStorage.getItem('primary_character_name'))
   const isSuperuser = ref<boolean>(localStorage.getItem('is_superuser') === 'true')
+  const primaryCorporationId = ref<number | null>(
+    localStorage.getItem('primary_corporation_id') ? Number(localStorage.getItem('primary_corporation_id')) : null
+  )
+  const primaryAllianceId = ref<number | null>(
+    localStorage.getItem('primary_alliance_id') ? Number(localStorage.getItem('primary_alliance_id')) : null
+  )
 
   const isLoggedIn = computed(() => !!accessToken.value)
 
@@ -51,6 +57,15 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('primary_character_name', name)
   }
 
+  function updatePrimaryCorpAlliance(corporationId: number | null, allianceId: number | null) {
+    primaryCorporationId.value = corporationId
+    primaryAllianceId.value = allianceId
+    if (corporationId) localStorage.setItem('primary_corporation_id', String(corporationId))
+    else localStorage.removeItem('primary_corporation_id')
+    if (allianceId) localStorage.setItem('primary_alliance_id', String(allianceId))
+    else localStorage.removeItem('primary_alliance_id')
+  }
+
   async function bindCharacter(): Promise<string> {
     const { data } = await api.get('/auth/eve/bind')
     return data.redirect_url
@@ -69,6 +84,8 @@ export const useAuthStore = defineStore('auth', () => {
     characterName.value = null
     primaryCharacterId.value = null
     primaryCharacterName.value = null
+    primaryCorporationId.value = null
+    primaryAllianceId.value = null
     isSuperuser.value = false
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
@@ -76,6 +93,8 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('character_name')
     localStorage.removeItem('primary_character_id')
     localStorage.removeItem('primary_character_name')
+    localStorage.removeItem('primary_corporation_id')
+    localStorage.removeItem('primary_alliance_id')
     localStorage.removeItem('is_superuser')
     resetPluginRoutesFlag()
   }
@@ -89,6 +108,7 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken, refreshToken, characterId, characterName,
     primaryCharacterId, primaryCharacterName,
     isSuperuser, isLoggedIn,
-    setTokens, updatePrimary, bindCharacter, logout, loginWithEve,
+    primaryCorporationId, primaryAllianceId,
+    setTokens, updatePrimary, updatePrimaryCorpAlliance, bindCharacter, logout, loginWithEve,
   }
 })

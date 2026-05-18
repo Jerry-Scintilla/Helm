@@ -24,6 +24,8 @@ onMounted(async () => {
   try {
     const res = await api.get('/api/v1/characters/')
     characters.value = res.data
+    const primary = res.data.find((c: any) => c.is_primary) ?? res.data[0]
+    if (primary) auth.updatePrimaryCorpAlliance(primary.corporation_id ?? null, primary.alliance_id ?? null)
   } catch {}
   if (auth.characterId) portraitStore.fetchPortrait(auth.characterId)
 })

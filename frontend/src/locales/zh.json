@@ -38,7 +38,8 @@
     "page": "第 {n} 页",
     "pageOf": "第 {page} 页 / 共 {total} 页",
     "totalItems": "共 {n} 条",
-    "errorMsg": "错误信息"
+    "errorMsg": "错误信息",
+    "add": "添加"
   },
   "nav": {
     "dashboard": "角色总览",
@@ -103,7 +104,15 @@
       "count": "{n} 个用户",
       "username": "用户名",
       "superuser": "超级用户",
-      "deactivated": "用户已停用"
+      "deactivated": "用户已停用",
+      "roles": "角色",
+      "manageRoles": "管理角色",
+      "currentRoles": "当前角色",
+      "noRoles": "暂无角色",
+      "addRole": "添加角色",
+      "selectRole": "选择角色…",
+      "roleAdded": "角色已分配",
+      "roleRemoved": "角色已移除"
     },
     "roles": {
       "count": "{n} 个角色",

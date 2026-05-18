@@ -38,7 +38,8 @@
     "page": "Page {n}",
     "pageOf": "Page {page} of {total}",
     "totalItems": "{n} total",
-    "errorMsg": "Error"
+    "errorMsg": "Error",
+    "add": "Add"
   },
   "nav": {
     "dashboard": "Character Overview",
@@ -103,7 +104,15 @@
       "count": "{n} users",
       "username": "Username",
       "superuser": "Superuser",
-      "deactivated": "User deactivated"
+      "deactivated": "User deactivated",
+      "roles": "Roles",
+      "manageRoles": "Manage Roles",
+      "currentRoles": "Current Roles",
+      "noRoles": "No roles assigned",
+      "addRole": "Add Role",
+      "selectRole": "Select a role…",
+      "roleAdded": "Role assigned",
+      "roleRemoved": "Role removed"
     },
     "roles": {
       "count": "{n} roles",

@@ -8,6 +8,7 @@ export interface AdminUser {
   is_active: boolean
   is_superuser: boolean
   created_at: string
+  roles: AdminRole[]
 }
 
 export interface AdminRole {
@@ -112,10 +113,12 @@ export const useAdminStore = defineStore('admin', () => {
 
   async function assignRole(userId: number, roleId: number) {
     await api.post(`/api/v1/admin/users/${userId}/roles`, { role_id: roleId })
+    await fetchUsers()
   }
 
   async function removeRole(userId: number, roleId: number) {
     await api.delete(`/api/v1/admin/users/${userId}/roles/${roleId}`)
+    await fetchUsers()
   }
 
   async function assignPermission(roleId: number, permissionId: number) {

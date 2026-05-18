@@ -20,12 +20,14 @@ function icon(emoji: string) {
 const charId = computed(() =>
   route.params.id ? String(route.params.id) : (auth.characterId ? String(auth.characterId) : null)
 )
-const corpId = computed(() =>
-  route.path.startsWith('/corporation/') ? String(route.params.id) : null
-)
-const allianceId = computed(() =>
-  route.path.startsWith('/alliance/') ? String(route.params.id) : null
-)
+const corpId = computed(() => {
+  if (route.path.startsWith('/corporation/')) return String(route.params.id)
+  return auth.primaryCorporationId ? String(auth.primaryCorporationId) : null
+})
+const allianceId = computed(() => {
+  if (route.path.startsWith('/alliance/')) return String(route.params.id)
+  return auth.primaryAllianceId ? String(auth.primaryAllianceId) : null
+})
 
 const menuOptions = computed<MenuOption[]>(() => {
   const cid = charId.value

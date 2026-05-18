@@ -38,6 +38,7 @@ celery_app.conf.update(
     accept_content=["json"],
     timezone="UTC",
     enable_utc=True,
+    task_default_queue="default",
     task_routes={
         "app.tasks.characters.*": {"queue": "characters"},
         "app.tasks.corporations.*": {"queue": "corporations"},
@@ -45,6 +46,8 @@ celery_app.conf.update(
         "app.tasks.bucket.*": {"queue": "bucket"},
         "app.tasks.high.*": {"queue": "high"},
         "app.tasks.sde.*": {"queue": "high"},
+        # Plugin tasks — all unrecognised prefixes land on the default queue.
+        # Each plugin may override this via @celery_app.task(queue="...").
     },
     beat_schedule={
         # Character per-character refresh is fully handled by the bucket scheduler.

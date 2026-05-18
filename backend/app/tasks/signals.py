@@ -81,6 +81,48 @@ def on_worker_init(**kwargs):
     from app.esi.client import register_token_persist
     from app.core.token_persist import persist_refreshed_token
     register_token_persist(persist_refreshed_token)
+    _load_plugin_tasks()
+
+
+def _load_plugin_tasks() -> None:
+    """Import plugin task modules into the worker process at startup.
+
+    _register_celery_tasks() runs in the FastAPI process and has no effect on
+    worker processes.  Workers only know about tasks imported at startup.  This
+    function queries the DB for enabled plugins and imports each plugin's task
+    modules so that tasks dispatched via .delay() can actually be executed.
+    """
+    import importlib
+
+    try:
+        Session = _get_session_factory()
+        with Session() as session:
+            rows = session.execute(
+                text(
+                    "SELECT entry_point FROM plugins"
+                    " WHERE is_enabled = TRUE AND status = 'enabled'"
+                )
+            ).fetchall()
+    except Exception as exc:
+        logger.warning("worker_init: could not query plugins from DB: %s", exc)
+        return
+
+    for (entry_point,) in rows:
+        try:
+            from app.plugins.installer import load_plugin_class
+            plugin_class = load_plugin_class(entry_point)
+            plugin_instance = plugin_class()
+            for module_path in plugin_instance.get_tasks():
+                try:
+                    importlib.import_module(module_path)
+                    logger.info("worker_init: loaded plugin task module '%s'", module_path)
+                except Exception as exc:
+                    logger.warning(
+                        "worker_init: failed to import plugin task module '%s': %s",
+                        module_path, exc,
+                    )
+        except Exception as exc:
+            logger.warning("worker_init: failed to load plugin '%s': %s", entry_point, exc)
 
 
 @task_prerun.connect

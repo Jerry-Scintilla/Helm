@@ -121,7 +121,14 @@
       "descPlaceholder": "Description (optional)",
       "created": "Role created",
       "deleted": "Role deleted",
-      "permissions": "Built-in Permissions"
+      "permissions": "Built-in Permissions",
+      "managePerms": "Manage Permissions",
+      "currentPerms": "Current Permissions",
+      "noPerms": "No permissions assigned",
+      "addPerm": "Add Permission",
+      "selectPerm": "Select a permission…",
+      "permAdded": "Permission added",
+      "permRemoved": "Permission removed"
     },
     "permissions": {
       "count": "{n} built-in permissions",

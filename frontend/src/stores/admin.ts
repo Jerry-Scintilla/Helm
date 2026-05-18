@@ -15,6 +15,7 @@ export interface AdminRole {
   id: number
   name: string
   description: string
+  permissions: AdminPermission[]
 }
 
 export interface AdminPermission {
@@ -123,10 +124,12 @@ export const useAdminStore = defineStore('admin', () => {
 
   async function assignPermission(roleId: number, permissionId: number) {
     await api.post(`/api/v1/admin/roles/${roleId}/permissions`, { permission_id: permissionId })
+    await fetchRoles()
   }
 
   async function removePermission(roleId: number, permissionId: number) {
     await api.delete(`/api/v1/admin/roles/${roleId}/permissions/${permissionId}`)
+    await fetchRoles()
   }
 
   async function deactivateUser(userId: number) {

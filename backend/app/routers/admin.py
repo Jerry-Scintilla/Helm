@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, status, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -47,10 +48,24 @@ async def list_users(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_permission("global.superuser")),
 ):
-    result = await db.execute(select(User))
+    result = await db.execute(
+        select(User).options(
+            selectinload(User.user_roles).selectinload(UserRole.role)
+        )
+    )
     users = result.scalars().all()
     return [
-        {"id": u.id, "username": u.username, "is_active": u.is_active, "is_superuser": u.is_superuser}
+        {
+            "id": u.id,
+            "username": u.username,
+            "is_active": u.is_active,
+            "is_superuser": u.is_superuser,
+            "created_at": u.created_at,
+            "roles": [
+                {"id": ur.role.id, "name": ur.role.name, "description": ur.role.description}
+                for ur in u.user_roles
+            ],
+        }
         for u in users
     ]
 
@@ -83,9 +98,24 @@ async def list_roles(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_permission("global.superuser")),
 ):
-    result = await db.execute(select(Role))
+    result = await db.execute(
+        select(Role).options(
+            selectinload(Role.role_permissions).selectinload(RolePermission.permission)
+        )
+    )
     roles = result.scalars().all()
-    return [{"id": r.id, "name": r.name, "description": r.description} for r in roles]
+    return [
+        {
+            "id": r.id,
+            "name": r.name,
+            "description": r.description,
+            "permissions": [
+                {"id": rp.permission.id, "name": rp.permission.name, "scope_type": rp.permission.scope_type}
+                for rp in r.role_permissions
+            ],
+        }
+        for r in roles
+    ]
 
 
 @router.post("/roles/")

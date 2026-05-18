@@ -26,8 +26,10 @@ const iframeSrc = computed(() => {
   const token = pluginName ? pluginStore.pluginCacheTokens[pluginName] : undefined
   const lang = localeStore.locale
   const sep = base.includes('?') ? '&' : '?'
-  const vParam = token ? `_v=${token}&` : ''
-  return `${base}${sep}${vParam}lang=${lang}`
+  const parts: string[] = []
+  if (token !== undefined) parts.push(`_v=${token}`)
+  parts.push(`lang=${lang}`)
+  return `${base}${sep}${parts.join('&')}`
 })
 const apiBase = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 

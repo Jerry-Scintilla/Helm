@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
+from app.cache import logical_delete
 from app.core.database import AsyncSessionLocal
 from app.esi.client import get_esi_client
 from app.models.character import Character
@@ -54,6 +55,7 @@ async def _update_wallet_journal(character: Character) -> None:
             )
             await db.execute(stmt)
         await db.commit()
+    await logical_delete(f"wallet:journal:{character.id}:1:50")
 
 
 @celery_app.task(name="app.tasks.characters.wallet_journal.update_wallet_journal")

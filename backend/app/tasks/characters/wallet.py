@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 
+from app.cache import logical_delete
 from app.core.database import AsyncSessionLocal
 from app.esi.client import get_esi_client
 from app.models.character import Character
@@ -34,6 +35,7 @@ async def _update_wallet(character: Character) -> None:
             wallet.balance = balance
             wallet.updated_at = datetime.now(UTC)
         await db.commit()
+    await logical_delete(f"wallet:balance:{character.id}")
 
 
 @celery_app.task(name="app.tasks.characters.wallet.update_wallet")

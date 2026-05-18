@@ -20,6 +20,7 @@ const tab = ref<'journal' | 'transactions'>('journal')
 const journalPage = ref(1)
 const txPage = ref(1)
 const loading = ref(false)
+const refreshing = ref(false)
 
 onMounted(() => loadData())
 
@@ -32,6 +33,17 @@ async function loadData() {
     ])
   } finally {
     loading.value = false
+  }
+}
+
+async function handleRefresh() {
+  refreshing.value = true
+  try {
+    await charStore.refreshWallet(characterId)
+    journalPage.value = 1
+    txPage.value = 1
+  } finally {
+    refreshing.value = false
   }
 }
 
@@ -72,7 +84,10 @@ const txCols: DataTableColumns<WalletTransaction> = [
 
 <template>
   <div>
-    <h1 class="page-title h-serif" style="margin-bottom:20px">{{ t('nav.wallet') }}</h1>
+    <div class="page-header">
+      <h1 class="page-title h-serif">{{ t('nav.wallet') }}</h1>
+      <n-button size="small" ghost :loading="refreshing" @click="handleRefresh">{{ t('common.refresh') }}</n-button>
+    </div>
 
     <n-tabs v-model:value="tab" type="line" animated>
       <n-tab-pane name="journal" :tab="t('wallet.journal')">
@@ -113,7 +128,8 @@ const txCols: DataTableColumns<WalletTransaction> = [
 </template>
 
 <style scoped>
-.page-title { font-size: 1.6rem; color: #faf9f5; }
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.page-title { font-size: 1.6rem; color: #faf9f5; margin: 0; }
 .pagination { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
 .page-num { font-size: 0.85rem; color: #87867f; }
 :deep(.pos) { color: #6abf69; }

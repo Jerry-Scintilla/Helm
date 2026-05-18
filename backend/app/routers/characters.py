@@ -181,14 +181,74 @@ async def get_wallet(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("character.view")),
 ):
+    from app.cache import WALLET_TTL, logical_get, logical_set, try_acquire_lock
+    from app.tasks.characters.wallet import _update_wallet
+
     char = await _get_character_for_user(character_id, current_user, db)
-    result = await db.execute(
-        select(CharacterWallet).where(CharacterWallet.character_id == char.id)
-    )
+    cache_key = f"wallet:balance:{char.id}"
+
+    data, is_stale = await logical_get(cache_key)
+    if data is not None:
+        if is_stale and await try_acquire_lock(cache_key):
+            asyncio.create_task(asyncio.to_thread(
+                celery_app.send_task,
+                "app.tasks.characters.wallet.update_wallet",
+                args=[char.id],
+                queue="characters",
+            ))
+        return data
+
+    # Cache miss: try DB first
+    result = await db.execute(select(CharacterWallet).where(CharacterWallet.character_id == char.id))
     wallet = result.scalar_one_or_none()
+
     if wallet is None:
-        return {"balance": None, "updated_at": None}
-    return {"balance": wallet.balance, "updated_at": wallet.updated_at}
+        # First-ever fetch: block until we have real data
+        char_db_id = char.id
+        await _update_wallet(char)
+        db.expire_all()
+        result = await db.execute(select(CharacterWallet).where(CharacterWallet.character_id == char_db_id))
+        wallet = result.scalar_one_or_none()
+
+    payload = {
+        "balance": wallet.balance if wallet else None,
+        "updated_at": wallet.updated_at.isoformat() if wallet and wallet.updated_at else None,
+    }
+    await logical_set(cache_key, payload, WALLET_TTL)
+    return payload
+
+
+@router.post("/{character_id}/wallet/refresh")
+async def refresh_wallet(
+    character_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("character.view")),
+):
+    from app.cache import WALLET_TTL, logical_delete, logical_set
+    from app.tasks.characters.wallet import _update_wallet
+    from app.tasks.characters.wallet_journal import _update_wallet_journal
+    from app.tasks.characters.wallet_transactions import _update_wallet_transactions
+
+    char = await _get_character_for_user(character_id, current_user, db)
+    char_db_id = char.id
+
+    # Fetch all three concurrently from ESI; each writes to DB and invalidates its cache key
+    await asyncio.gather(
+        _update_wallet(char),
+        _update_wallet_journal(char),
+        _update_wallet_transactions(char),
+    )
+
+    # Re-read balance and rebuild balance cache
+    db.expire_all()
+    result = await db.execute(select(CharacterWallet).where(CharacterWallet.character_id == char_db_id))
+    wallet = result.scalar_one_or_none()
+    payload = {
+        "balance": wallet.balance if wallet else None,
+        "updated_at": wallet.updated_at.isoformat() if wallet and wallet.updated_at else None,
+    }
+    await logical_set(f"wallet:balance:{char_db_id}", payload, WALLET_TTL)
+    return payload
 
 
 @router.get("/{character_id}/skills")
@@ -439,7 +499,23 @@ async def get_wallet_journal(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("character.view")),
 ):
+    from app.cache import WALLET_TTL, logical_get, logical_set, try_acquire_lock
+
     char = await _get_character_for_user(character_id, current_user, db)
+    cache_key = f"wallet:journal:{char.id}:{page}:{per_page}"
+    lock_key = f"wallet:journal-refresh:{char.id}"
+
+    data, is_stale = await logical_get(cache_key)
+    if data is not None:
+        if is_stale and await try_acquire_lock(lock_key):
+            asyncio.create_task(asyncio.to_thread(
+                celery_app.send_task,
+                "app.tasks.characters.wallet_journal.update_wallet_journal",
+                args=[char.id],
+                queue="characters",
+            ))
+        return data
+
     result = await db.execute(
         select(CharacterWalletJournal)
         .where(CharacterWalletJournal.character_id == char.id)
@@ -448,7 +524,17 @@ async def get_wallet_journal(
         .limit(per_page)
     )
     entries = result.scalars().all()
-    return [
+
+    if not entries and page == 1 and await try_acquire_lock(lock_key):
+        asyncio.create_task(asyncio.to_thread(
+            celery_app.send_task,
+            "app.tasks.characters.wallet_journal.update_wallet_journal",
+            args=[char.id],
+            queue="characters",
+        ))
+        return []
+
+    payload = [
         {
             "id": e.id,
             "journal_id": e.journal_id,
@@ -462,6 +548,8 @@ async def get_wallet_journal(
         }
         for e in entries
     ]
+    await logical_set(cache_key, payload, WALLET_TTL)
+    return payload
 
 
 @router.get("/{character_id}/wallet/transactions")
@@ -472,7 +560,23 @@ async def get_wallet_transactions(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("character.view")),
 ):
+    from app.cache import WALLET_TTL, logical_get, logical_set, try_acquire_lock
+
     char = await _get_character_for_user(character_id, current_user, db)
+    cache_key = f"wallet:tx:{char.id}:{page}:{per_page}"
+    lock_key = f"wallet:tx-refresh:{char.id}"
+
+    data, is_stale = await logical_get(cache_key)
+    if data is not None:
+        if is_stale and await try_acquire_lock(lock_key):
+            asyncio.create_task(asyncio.to_thread(
+                celery_app.send_task,
+                "app.tasks.characters.wallet_transactions.update_wallet_transactions",
+                args=[char.id],
+                queue="characters",
+            ))
+        return data
+
     result = await db.execute(
         select(CharacterWalletTransaction)
         .where(CharacterWalletTransaction.character_id == char.id)
@@ -481,6 +585,16 @@ async def get_wallet_transactions(
         .limit(per_page)
     )
     entries = result.scalars().all()
+
+    if not entries and page == 1 and await try_acquire_lock(lock_key):
+        asyncio.create_task(asyncio.to_thread(
+            celery_app.send_task,
+            "app.tasks.characters.wallet_transactions.update_wallet_transactions",
+            args=[char.id],
+            queue="characters",
+        ))
+        return []
+
     tx_rows = [
         {
             "transaction_id": e.transaction_id,
@@ -495,6 +609,7 @@ async def get_wallet_transactions(
         for e in entries
     ]
     await enrich_type_names_all_locales(tx_rows, id_field="type_id", name_field="type_name", db=db)
+    await logical_set(cache_key, tx_rows, WALLET_TTL)
     return tx_rows
 
 

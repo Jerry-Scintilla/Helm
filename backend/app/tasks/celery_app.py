@@ -47,21 +47,9 @@ celery_app.conf.update(
     },
     beat_schedule={
         # Character tasks — hourly
-        "update-all-wallets": {
-            "task": "app.tasks.characters.wallet.update_all_wallets",
-            "schedule": 3600.0,
-            "options": {"queue": "characters"},
-        },
-        "update-all-wallet-journals": {
-            "task": "app.tasks.characters.wallet_journal.update_all_wallet_journals",
-            "schedule": 3600.0,
-            "options": {"queue": "characters"},
-        },
-        "update-all-wallet-transactions": {
-            "task": "app.tasks.characters.wallet_transactions.update_all_wallet_transactions",
-            "schedule": 3600.0,
-            "options": {"queue": "characters"},
-        },
+        # Wallet tasks removed from beat: now driven by on-demand logical-expiry cache.
+        # Per-character refresh is triggered automatically when cache goes stale,
+        # or immediately via POST /{character_id}/wallet/refresh.
         "update-all-skill-queues": {
             "task": "app.tasks.characters.skill_queue.update_all_skill_queues",
             "schedule": 3600.0,

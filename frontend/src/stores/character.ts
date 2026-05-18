@@ -153,6 +153,15 @@ export const useCharacterStore = defineStore('character', () => {
     walletTransactions.value = res.data
   }
 
+  async function refreshWallet(characterId: number) {
+    const res = await api.post(`/api/v1/characters/${characterId}/wallet/refresh`)
+    wallet.value = res.data
+    await Promise.all([
+      fetchWalletJournal(characterId, 1),
+      fetchWalletTransactions(characterId, 1),
+    ])
+  }
+
   async function fetchSkillQueue(characterId: number) {
     const res = await api.get(`/api/v1/characters/${characterId}/skillqueue`)
     skillQueue.value = res.data
@@ -186,7 +195,7 @@ export const useCharacterStore = defineStore('character', () => {
     walletJournal, walletTransactions, skillQueue,
     mails, selectedMail, notifications, notificationTotal,
     loading, error,
-    fetchAll, fetchWalletJournal, fetchWalletTransactions,
+    fetchAll, fetchWalletJournal, fetchWalletTransactions, refreshWallet,
     fetchSkillQueue, fetchMails, fetchMailBody, fetchNotifications,
   }
 })

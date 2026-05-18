@@ -11,6 +11,16 @@
 
 ---
 
+## Screenshots
+
+![Character Overview](screenshot/%E6%80%BB%E8%A7%88%EF%BC%88%E8%8B%B1%E6%96%87%EF%BC%89.jpeg)
+
+![Skills](screenshot/%E6%8A%80%E8%83%BD%EF%BC%88%E8%8B%B1%E6%96%87%EF%BC%89.jpeg)
+
+![Plugin Management](screenshot/%E6%8F%92%E4%BB%B6%E7%AE%A1%E7%90%86%EF%BC%88%E8%8B%B1%E6%96%87%EF%BC%89.jpeg)
+
+---
+
 ## Core Philosophy: Minimal Core, Infinite Extensibility
 
 Helm is built on a principle of **权衡与搭配** — letting you weigh and combine functionality versus performance according to your needs.
@@ -66,6 +76,7 @@ Helm is built on a principle of **权衡与搭配** — letting you weigh and co
 | Plugin | Description | Author |
 |--------|-------------|--------|
 | [fleet-action](https://github.com/Jerry-Scintilla/helm-plugin-fleet-action) | Fleet PAP (attendance) management with manual record issuance | Jerry_Scintilla |
+| [SRP](https://github.com/Jerry-Scintilla/helm-plugin-SRP) | Ship Replacement Request management with killmails link parsing, officer review, and pricing configuration | Jerry_Scintilla |
 | [helm-mcp](https://github.com/Jerry-Scintilla/helm-plugin-MCP) | Model Context Protocol server exposing Helm to LLMs | Jerry_Scintilla |
 
 ---
@@ -225,7 +236,7 @@ See [LICENSE](LICENSE) for the full license text.
 
 ## Links
 
-- [Helm Documentation](https://jerry-scintilla.github.io/Helm-docs/)
+- [Helm Documentation](https://jerry-scintilla.github.io/Helm-screenshot/)
 - [Plugin Development Guide](Markdown/Plugin_Dev_Guide/)
 - [EVE Developers Portal](https://developers.eveonline.com)
 - [ESI Swagger UI](https://esi.evetech.net/ui/)

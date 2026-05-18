@@ -4,9 +4,14 @@ Overrides are stored as a Redis hash at OVERRIDES_KEY:
   field = beat_schedule entry name  (e.g. "bucket-scheduler")
   value = interval in seconds       (e.g. "120")
 
-When a change is detected the scheduler directly patches self.data (the
-persistent shelve) entry schedules and nulls self._heap so Celery rebuilds
-the heap on the next tick — preserving last_run_at/total_run_count.
+When a change is detected the scheduler patches self.schedule (=
+self._store['entries']) and nulls self._heap so Celery rebuilds the heap on
+the next tick — preserving last_run_at/total_run_count.
+
+NOTE: In Celery 5.x PersistentScheduler, the live entries are stored in
+self._store['entries'] and exposed via the self.schedule property.
+self.data (from the base Scheduler.__init__) is always an empty {} and must
+NOT be used to read or write schedule entries.
 """
 import logging
 import time
@@ -97,13 +102,19 @@ class HelmBeatScheduler(PersistentScheduler):
         return True
 
     def _patch_entry(self, name: str, secs: float) -> None:
-        """Directly update self.data[name].schedule and keep beat_schedule in sync."""
-        if name not in self.data:
+        """Update the live schedule entry and keep beat_schedule conf in sync.
+
+        self.schedule returns self._store['entries'] (the persistent shelve
+        dict opened with writeback=True), which is the authoritative store
+        used by Celery 5.x PersistentScheduler.tick().
+        """
+        entries = self.schedule  # self._store['entries']
+        if name not in entries:
+            logger.warning("HelmBeatScheduler: entry '%s' not found in schedule, skipping", name)
             return
-        entry = self.data[name]
+        entry = entries[name]
         entry.schedule = celery_schedule(secs)
-        self.data[name] = entry  # explicit re-assignment marks shelve entry dirty
-        # Keep app.conf in sync so the admin API reports the right value
+        entries[name] = entry  # explicit re-assignment marks the shelve writeback slot dirty
         if name in self.app.conf.beat_schedule:
             self.app.conf.beat_schedule[name]["schedule"] = secs
         logger.info("HelmBeatScheduler: %s → %gs", name, secs)

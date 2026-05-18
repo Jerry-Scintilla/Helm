@@ -22,6 +22,8 @@ const drawerLoading = ref(false)
 
 const triggeringMap = ref<Record<string, boolean>>({})
 const revokingMap = ref<Record<string, boolean>>({})
+const editingInterval = ref<Record<string, boolean>>({})
+const editIntervalValue = ref<Record<string, number>>({})
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
@@ -89,6 +91,36 @@ async function triggerScheduled(name: string) {
     message.error(e.response?.data?.detail ?? t('admin.tasks.triggerFailed'))
   } finally {
     triggeringMap.value[name] = false
+  }
+}
+
+function startEditInterval(name: string, current: number) {
+  editIntervalValue.value[name] = current
+  editingInterval.value[name] = true
+}
+
+function cancelEditInterval(name: string) {
+  editingInterval.value[name] = false
+}
+
+async function saveInterval(name: string) {
+  const val = editIntervalValue.value[name]
+  if (!val || val < 10) return
+  try {
+    await taskStore.updateScheduleInterval(name, val)
+    message.success(t('admin.tasks.intervalUpdated'))
+    editingInterval.value[name] = false
+  } catch {
+    message.error(t('admin.tasks.intervalUpdateFailed'))
+  }
+}
+
+async function resetInterval(name: string) {
+  try {
+    await taskStore.resetScheduleInterval(name)
+    message.success(t('admin.tasks.intervalReset'))
+  } catch {
+    message.error(t('admin.tasks.intervalResetFailed'))
   }
 }
 
@@ -329,7 +361,26 @@ function triggerByLabel(v: string): string {
                 <span class="task-full-only">{{ shortName(s.task) }}</span>
               </td>
               <td><span class="queue-badge">{{ s.queue }}</span></td>
-              <td class="muted-cell">{{ formatSchedule(s.schedule_seconds) }}</td>
+              <td>
+                <!-- Inline interval editor -->
+                <div v-if="editingInterval[s.name]" class="interval-editor" @click.stop>
+                  <input
+                    class="interval-input"
+                    type="number"
+                    min="10"
+                    :value="editIntervalValue[s.name]"
+                    @input="editIntervalValue[s.name] = +($event.target as HTMLInputElement).value"
+                    @keydown.enter="saveInterval(s.name)"
+                    @keydown.esc="cancelEditInterval(s.name)"
+                  />
+                  <button class="btn-save-sm" @click="saveInterval(s.name)">✓</button>
+                  <button class="btn-ghost-sm" @click="cancelEditInterval(s.name)">✕</button>
+                </div>
+                <div v-else class="interval-display">
+                  <span class="muted-cell">{{ formatSchedule(s.schedule_seconds) }}</span>
+                  <span v-if="s.is_overridden" class="override-badge">{{ t('admin.tasks.overridden') }}</span>
+                </div>
+              </td>
               <td>
                 <span v-if="s.last_run" class="status-badge"
                   :style="{ color: statusColor(s.last_run.status), borderColor: statusColor(s.last_run.status) }">
@@ -339,14 +390,30 @@ function triggerByLabel(v: string): string {
               </td>
               <td class="muted-cell time-cell">{{ formatTime(s.last_run?.completed_at ?? null) }}</td>
               <td class="muted-cell time-cell">{{ formatTime(s.estimated_next_run) }}</td>
-              <td>
-                <button
-                  class="btn-trigger"
-                  :disabled="!!triggeringMap[s.name]"
-                  @click="triggerScheduled(s.name)"
-                >
-                  {{ triggeringMap[s.name] ? t('admin.tasks.triggering') : t('admin.tasks.triggerNow') }}
-                </button>
+              <td @click.stop>
+                <div class="action-group">
+                  <button
+                    class="btn-trigger"
+                    :disabled="!!triggeringMap[s.name]"
+                    @click="triggerScheduled(s.name)"
+                  >
+                    {{ triggeringMap[s.name] ? t('admin.tasks.triggering') : t('admin.tasks.triggerNow') }}
+                  </button>
+                  <button
+                    v-if="!editingInterval[s.name]"
+                    class="btn-secondary-sm"
+                    @click="startEditInterval(s.name, s.schedule_seconds)"
+                  >
+                    {{ t('admin.tasks.editInterval') }}
+                  </button>
+                  <button
+                    v-if="s.is_overridden && !editingInterval[s.name]"
+                    class="btn-ghost-sm"
+                    @click="resetInterval(s.name)"
+                  >
+                    {{ t('admin.tasks.resetInterval') }}
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -506,4 +573,17 @@ function triggerByLabel(v: string): string {
 .error-pre { color: #c97575; }
 
 .h-serif { font-family: Georgia, serif; }
+
+.interval-display { display: flex; align-items: center; gap: 6px; }
+.interval-editor { display: flex; align-items: center; gap: 4px; }
+.interval-input { width: 80px; background: #1a1a18; border: 1px solid #5e5d59; border-radius: 4px; color: #faf9f5; font-size: 0.8rem; padding: 2px 6px; outline: none; }
+.interval-input:focus { border-color: #c96442; }
+.override-badge { background: rgba(201,100,66,0.15); border: 1px solid rgba(201,100,66,0.4); border-radius: 4px; padding: 1px 6px; font-size: 0.68rem; color: #c96442; white-space: nowrap; }
+.action-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.btn-secondary-sm { background: #30302e; border: none; border-radius: 5px; color: #b0aea5; font-size: 0.75rem; padding: 3px 8px; cursor: pointer; white-space: nowrap; transition: background 0.15s; }
+.btn-secondary-sm:hover { background: #3d3d3a; }
+.btn-save-sm { background: rgba(106,191,105,0.15); border: 1px solid #6abf69; border-radius: 4px; color: #6abf69; font-size: 0.78rem; padding: 2px 7px; cursor: pointer; }
+.btn-save-sm:hover { background: rgba(106,191,105,0.25); }
+.btn-ghost-sm { background: none; border: 1px solid #30302e; border-radius: 4px; color: #5e5d59; font-size: 0.75rem; padding: 2px 7px; cursor: pointer; white-space: nowrap; }
+.btn-ghost-sm:hover { color: #87867f; border-color: #5e5d59; }
 </style>

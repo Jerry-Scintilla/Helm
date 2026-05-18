@@ -1,15 +1,19 @@
 from datetime import UTC, datetime, timedelta
 from typing import Optional
 
+import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import asc, desc, func, select
+from pydantic import BaseModel
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.permissions import require_permission
+from app.core.redis import get_pool
 from app.models.task_run import TaskRun
 from app.models.user import User
 from app.tasks.celery_app import celery_app
+from app.tasks.helm_scheduler import OVERRIDES_KEY
 
 router = APIRouter(prefix="/api/v1/admin/tasks", tags=["admin-tasks"])
 
@@ -119,23 +123,31 @@ async def list_scheduled_tasks(
     _: User = Depends(require_permission("global.superuser")),
 ):
     beat = celery_app.conf.beat_schedule
-    result = []
 
+    # Load Redis overrides
+    async with aioredis.Redis(connection_pool=get_pool()) as r:
+        raw = await r.hgetall(OVERRIDES_KEY)
+    overrides: dict[str, float] = {}
+    for k, v in raw.items():
+        try:
+            overrides[k.decode() if isinstance(k, bytes) else k] = float(v.decode() if isinstance(v, bytes) else v)
+        except (ValueError, AttributeError):
+            pass
+
+    result = []
     for name, entry in beat.items():
         task_name = entry["task"]
-        schedule_seconds = float(entry.get("schedule", 0))
+        default_seconds = float(entry.get("schedule", 0))
+        effective_seconds = overrides.get(name, default_seconds)
         queue = entry.get("options", {}).get("queue", "default")
 
-        # Last completed run for this task
-        last_run_row = (
-            await db.execute(
-                select(TaskRun)
-                .where(TaskRun.task_name == task_name)
-                .where(TaskRun.status.in_(["success", "failure", "revoked"]))
-                .order_by(desc(TaskRun.completed_at))
-                .limit(1)
-            )
-        ).scalar_one_or_none()
+        last_run_row = (await db.execute(
+            select(TaskRun)
+            .where(TaskRun.task_name == task_name)
+            .where(TaskRun.status.in_(["success", "failure", "revoked"]))
+            .order_by(desc(TaskRun.completed_at))
+            .limit(1)
+        )).scalar_one_or_none()
 
         last_run = None
         estimated_next_run = None
@@ -146,22 +158,56 @@ async def list_scheduled_tasks(
                 "completed_at": last_run_row.completed_at.isoformat() if last_run_row.completed_at else None,
                 "duration_seconds": _duration(last_run_row),
             }
-            if last_run_row.completed_at and schedule_seconds:
+            if last_run_row.completed_at and effective_seconds:
                 estimated_next_run = (
-                    last_run_row.completed_at + timedelta(seconds=schedule_seconds)
+                    last_run_row.completed_at + timedelta(seconds=effective_seconds)
                 ).isoformat()
 
         result.append({
             "name": name,
             "task": task_name,
             "queue": queue,
-            "schedule_seconds": schedule_seconds,
+            "default_seconds": default_seconds,
+            "schedule_seconds": effective_seconds,
+            "is_overridden": name in overrides,
             "last_run": last_run,
             "estimated_next_run": estimated_next_run,
         })
 
     result.sort(key=lambda x: x["name"])
     return result
+
+
+class IntervalUpdate(BaseModel):
+    interval_seconds: float
+
+
+@router.put("/scheduled/{name}/interval")
+async def update_schedule_interval(
+    name: str,
+    body: IntervalUpdate,
+    _: User = Depends(require_permission("global.superuser")),
+):
+    if name not in celery_app.conf.beat_schedule:
+        raise HTTPException(status_code=404, detail=f"Scheduled task '{name}' not found")
+    if body.interval_seconds < 10:
+        raise HTTPException(status_code=422, detail="interval_seconds must be >= 10")
+    async with aioredis.Redis(connection_pool=get_pool()) as r:
+        await r.hset(OVERRIDES_KEY, name, str(body.interval_seconds))
+    return {"name": name, "interval_seconds": body.interval_seconds}
+
+
+@router.delete("/scheduled/{name}/interval")
+async def reset_schedule_interval(
+    name: str,
+    _: User = Depends(require_permission("global.superuser")),
+):
+    if name not in celery_app.conf.beat_schedule:
+        raise HTTPException(status_code=404, detail=f"Scheduled task '{name}' not found")
+    async with aioredis.Redis(connection_pool=get_pool()) as r:
+        await r.hdel(OVERRIDES_KEY, name)
+    default = float(celery_app.conf.beat_schedule[name].get("schedule", 0))
+    return {"name": name, "interval_seconds": default, "is_overridden": False}
 
 
 @router.post("/scheduled/{name}/trigger")

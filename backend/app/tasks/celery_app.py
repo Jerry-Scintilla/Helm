@@ -75,10 +75,10 @@ celery_app.conf.update(
             "schedule": 86400.0,
             "options": {"queue": "corporations"},
         },
-        # Bucket scheduler — every minute
+        # Bucket scheduler — every 10 minutes
         "bucket-scheduler": {
             "task": "app.tasks.bucket.scheduler.run_bucket_scheduler",
-            "schedule": 60.0,
+            "schedule": 600.0,
             "options": {"queue": "bucket"},
         },
         # Maintenance — daily cleanup of task_runs older than 30 days

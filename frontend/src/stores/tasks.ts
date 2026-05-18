@@ -39,7 +39,9 @@ export interface ScheduledTask {
   name: string
   task: string
   queue: string
+  default_seconds: number
   schedule_seconds: number
+  is_overridden: boolean
   last_run: {
     task_id: string
     status: string
@@ -116,10 +118,23 @@ export const useTaskStore = defineStore('tasks', () => {
     await api.post(`/api/v1/admin/tasks/${taskId}/revoke`)
   }
 
+  async function updateScheduleInterval(name: string, intervalSeconds: number): Promise<void> {
+    await api.put(`/api/v1/admin/tasks/scheduled/${encodeURIComponent(name)}/interval`, {
+      interval_seconds: intervalSeconds,
+    })
+    await fetchScheduledTasks()
+  }
+
+  async function resetScheduleInterval(name: string): Promise<void> {
+    await api.delete(`/api/v1/admin/tasks/scheduled/${encodeURIComponent(name)}/interval`)
+    await fetchScheduledTasks()
+  }
+
   return {
     taskList, taskStats, scheduledTasks, selectedTask,
     loadingList, loadingStats, loadingScheduled,
     fetchTaskList, fetchTaskStats, fetchScheduledTasks,
     fetchTaskDetail, triggerScheduledTask, revokeTask,
+    updateScheduleInterval, resetScheduleInterval,
   }
 })

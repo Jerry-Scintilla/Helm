@@ -46,6 +46,7 @@ from app.plugins.loader import load_plugins
 from app.plugins.events import stop_listener
 
 
+
 async def _ensure_default_bucket() -> None:
     """Create a default bucket on first startup if none exist."""
     from sqlalchemy import select, func
@@ -61,6 +62,9 @@ async def _ensure_default_bucket() -> None:
 async def lifespan(app: FastAPI):
     logger.debug("lifespan startup begin")
     # Startup
+    from app.esi.client import register_token_persist
+    from app.core.token_persist import persist_refreshed_token
+    register_token_persist(persist_refreshed_token)
     async with AsyncSessionLocal() as db:
         await seed_permissions(db)
     await _ensure_default_bucket()

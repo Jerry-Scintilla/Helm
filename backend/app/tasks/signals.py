@@ -6,7 +6,7 @@ import json
 import logging
 from datetime import UTC, datetime
 
-from celery.signals import task_failure, task_prerun, task_retry, task_revoked, task_success
+from celery.signals import task_failure, task_prerun, task_retry, task_revoked, task_success, worker_init
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
@@ -74,6 +74,13 @@ def _upsert_task_run(session, task_id: str, **fields) -> None:
             text(f"INSERT INTO task_runs ({', '.join(cols)}) VALUES ({', '.join(vals)})"),
             {"task_id": task_id, **fields},
         )
+
+
+@worker_init.connect
+def on_worker_init(**kwargs):
+    from app.esi.client import register_token_persist
+    from app.core.token_persist import persist_refreshed_token
+    register_token_persist(persist_refreshed_token)
 
 
 @task_prerun.connect

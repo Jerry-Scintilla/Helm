@@ -24,6 +24,11 @@ class ESIResponse:
 
 _token_persist_callbacks: list = []
 
+# Process-local cache: eve_character_id -> latest valid access_token.
+# Updated on every successful 401-refresh so subsequent calls in the same task
+# use the new token without re-querying the database.
+_refreshed_token_cache: dict[int, str] = {}
+
 
 def register_token_persist(callback) -> None:
     _token_persist_callbacks.append(callback)
@@ -97,7 +102,7 @@ class ESIClient:
 
         # Cache miss — fetch from ESI
         if cached is None:
-            headers, req_params = self._build_headers_and_params(token, params, page, None)
+            headers, req_params = self._build_headers_and_params(token, params, page, None, character_id)
             url = f"{ESI_BASE}{path}"
             data, ttl, new_etag = await self._request_with_retry(
                 url, headers, req_params, None,
@@ -111,7 +116,7 @@ class ESIClient:
 
         # Internal callers: always fetch fresh
         if _internal:
-            headers, req_params = self._build_headers_and_params(token, params, page, cached_entry.etag)
+            headers, req_params = self._build_headers_and_params(token, params, page, cached_entry.etag, character_id)
             url = f"{ESI_BASE}{path}"
             data, ttl, new_etag = await self._request_with_retry(
                 url, headers, req_params, cached_entry.data,
@@ -134,7 +139,7 @@ class ESIClient:
             return cached_entry.data
 
         # Not stale — conditional request to ESI
-        headers, req_params = self._build_headers_and_params(token, params, page, cached_entry.etag)
+        headers, req_params = self._build_headers_and_params(token, params, page, cached_entry.etag, character_id)
         url = f"{ESI_BASE}{path}"
         data, ttl, new_etag = await self._request_with_retry(
             url, headers, req_params, cached_entry.data,
@@ -288,11 +293,16 @@ class ESIClient:
         return result
 
     def _build_headers_and_params(
-        self, token: str | None, params: dict | None, page: int | None, etag: str | None
+        self, token: str | None, params: dict | None, page: int | None, etag: str | None,
+        character_id: int | None = None,
     ) -> tuple[dict, dict]:
         headers = {}
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
+        # Prefer the process-local refreshed token over the (possibly stale) DB value
+        effective_token = (
+            _refreshed_token_cache.get(character_id) if character_id else None
+        ) or token
+        if effective_token:
+            headers["Authorization"] = f"Bearer {effective_token}"
         if etag:
             headers["If-None-Match"] = etag
         req_params = dict(params or {})
@@ -337,9 +347,14 @@ class ESIClient:
             if resp.status_code == 401 and refresh_token and character_id:
                 try:
                     new_tokens = await refresh_access_token(refresh_token)
-                    headers["Authorization"] = f"Bearer {new_tokens['access_token']}"
+                    new_access = new_tokens["access_token"]
+                    new_refresh = new_tokens.get("refresh_token", refresh_token)
+                    headers["Authorization"] = f"Bearer {new_access}"
+                    refresh_token = new_refresh
+                    # Update process-local cache so subsequent calls in this task skip 401
+                    _refreshed_token_cache[character_id] = new_access
                     for cb in _token_persist_callbacks:
-                        await cb(character_id, new_tokens["access_token"], new_tokens.get("refresh_token", refresh_token))
+                        await cb(character_id, new_access, new_refresh)
                     continue
                 except Exception:
                     break

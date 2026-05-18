@@ -26,6 +26,7 @@ celery_app = Celery(
         "app.tasks.sde.refresh_icon_cache",
         "app.tasks.bucket.scheduler",
         "app.tasks.bucket.runner",
+        "app.tasks.bucket.backfill",
         "app.tasks.esi_cache.refresh",
         "app.tasks.maintenance",
     ],
@@ -46,36 +47,7 @@ celery_app.conf.update(
         "app.tasks.sde.*": {"queue": "high"},
     },
     beat_schedule={
-        # Character tasks — hourly
-        # Wallet tasks removed from beat: now driven by on-demand logical-expiry cache.
-        # Per-character refresh is triggered automatically when cache goes stale,
-        # or immediately via POST /{character_id}/wallet/refresh.
-        "update-all-skill-queues": {
-            "task": "app.tasks.characters.skill_queue.update_all_skill_queues",
-            "schedule": 3600.0,
-            "options": {"queue": "characters"},
-        },
-        "update-all-notifications": {
-            "task": "app.tasks.characters.notifications.update_all_notifications",
-            "schedule": 1800.0,  # 30 minutes per spec
-            "options": {"queue": "characters"},
-        },
-        "update-all-mail": {
-            "task": "app.tasks.characters.mail.update_all_mail",
-            "schedule": 3600.0,
-            "options": {"queue": "characters"},
-        },
-        # Character tasks — daily
-        "update-all-skills": {
-            "task": "app.tasks.characters.skills.update_all_skills",
-            "schedule": 86400.0,
-            "options": {"queue": "characters"},
-        },
-        "update-all-assets": {
-            "task": "app.tasks.characters.assets.update_all_assets",
-            "schedule": 3600.0,
-            "options": {"queue": "characters"},
-        },
+        # Character per-character refresh is fully handled by the bucket scheduler.
         # Corporation tasks — hourly
         "sync-all-corporations": {
             "task": "app.tasks.corporations.info.sync_all_corporations",

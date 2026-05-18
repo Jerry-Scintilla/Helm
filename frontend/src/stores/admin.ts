@@ -142,9 +142,8 @@ export const useAdminStore = defineStore('admin', () => {
     buckets.value = res.data
   }
 
-  async function createBucket(name: string, capacity = 100, description = '') {
-    await api.post('/api/v1/admin/buckets/', { name, capacity, description })
-    await fetchBuckets()
+  async function triggerBucketBackfill() {
+    await api.post('/api/v1/admin/buckets/backfill')
   }
 
   async function updateBucket(bucketId: number, data: Partial<{ name: string; capacity: number; is_active: boolean }>) {
@@ -211,7 +210,7 @@ export const useAdminStore = defineStore('admin', () => {
     sdeStatus, currentTask,
     fetchUsers, fetchRoles, fetchPermissions, createRole, deleteRole,
     assignRole, removeRole, assignPermission, removePermission, deactivateUser,
-    fetchBuckets, createBucket, updateBucket, fetchSystemStats,
+    fetchBuckets, triggerBucketBackfill, updateBucket, fetchSystemStats,
     fetchSdeStatus, triggerSdeImport, triggerSdeUpload, fetchImportTaskStatus,
     startImportPolling, stopImportPolling,
   }

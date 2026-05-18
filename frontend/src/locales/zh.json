@@ -176,9 +176,11 @@
     },
     "buckets": {
       "count": "{n} 个 Bucket（每 30s 自动刷新）",
-      "created": "Bucket 已创建",
       "tokenCount": "Token 数",
-      "activeTasks": "活跃任务"
+      "activeTasks": "活跃任务",
+      "backfill": "回填角色",
+      "backfillSuccess": "回填任务已派发",
+      "backfillFailed": "回填失败"
     },
     "tokens": {
       "count": "{n} 个 API Token",

@@ -176,9 +176,11 @@
     },
     "buckets": {
       "count": "{n} Buckets (auto-refresh every 30s)",
-      "created": "Bucket created",
       "tokenCount": "Tokens",
-      "activeTasks": "Active Tasks"
+      "activeTasks": "Active Tasks",
+      "backfill": "Backfill Characters",
+      "backfillSuccess": "Backfill task dispatched",
+      "backfillFailed": "Backfill failed"
     },
     "tokens": {
       "count": "{n} API Tokens",

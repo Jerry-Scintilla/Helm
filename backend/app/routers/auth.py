@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db, AsyncSessionLocal
+from app.core.bucket import assign_to_bucket
 from app.core.permissions import assign_player_role, get_current_user
 from app.core.redis import get_pool
 from app.core.security import create_access_token, create_refresh_token, hash_token
@@ -157,6 +158,7 @@ async def _handle_bind(db, state_data, character_id, character_name, token_data,
     result = await db.execute(select(Character).where(Character.character_id == character_id))
     character = result.scalar_one_or_none()
 
+    is_new_character = character is None
     if character is None:
         character = Character(
             character_id=character_id,
@@ -180,6 +182,13 @@ async def _handle_bind(db, state_data, character_id, character_name, token_data,
         if token_expires_at is not None:
             character.token_expires_at = token_expires_at
 
+    if is_new_character:
+        await db.flush()
+        try:
+            await assign_to_bucket(character.id, db)
+        except Exception:
+            pass  # bucket assignment is best-effort; never block login
+
     await db.commit()
     asyncio.create_task(_dispatch_initial_sync_async(character.id))
 
@@ -199,6 +208,7 @@ async def _handle_login(db, character_id, character_name, token_data, scopes, to
     result = await db.execute(select(Character).where(Character.character_id == character_id))
     character = result.scalar_one_or_none()
 
+    is_new_character = character is None
     if character is None:
         character = Character(
             character_id=character_id,
@@ -223,6 +233,12 @@ async def _handle_login(db, character_id, character_name, token_data, scopes, to
 
     # Find the primary character for this user to return in the response
     await db.flush()
+
+    if is_new_character:
+        try:
+            await assign_to_bucket(character.id, db)
+        except Exception:
+            pass  # bucket assignment is best-effort; never block login
     primary_result = await db.execute(
         select(Character).where(Character.user_id == user.id, Character.is_primary == True)
     )

@@ -343,6 +343,18 @@ async def get_bucket_tokens(
     ]
 
 
+@router.post("/buckets/backfill", status_code=status.HTTP_202_ACCEPTED)
+async def trigger_bucket_backfill(
+    _: User = Depends(require_permission("global.superuser")),
+):
+    """Assign all existing characters without a bucket token to buckets."""
+    celery_app.send_task(
+        "app.tasks.bucket.backfill.backfill_bucket_assignments",
+        queue="bucket",
+    )
+    return {"detail": "Bucket backfill task dispatched"}
+
+
 # ── System stats ──────────────────────────────────────────────────────────────
 
 @router.get("/system/stats")

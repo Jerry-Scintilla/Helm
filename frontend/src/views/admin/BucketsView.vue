@@ -8,11 +8,7 @@ const adminStore = useAdminStore()
 const message = useMessage()
 const { t } = useI18n()
 const loading = ref(true)
-const showCreate = ref(false)
-const newName = ref('')
-const newCapacity = ref(100)
-const newDesc = ref('')
-const creating = ref(false)
+const backfilling = ref(false)
 let timer: ReturnType<typeof setInterval> | null = null
 
 onMounted(async () => {
@@ -21,25 +17,19 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-  // Auto-refresh every 30s
   timer = setInterval(() => adminStore.fetchBuckets(), 30_000)
 })
 onUnmounted(() => { if (timer) clearInterval(timer) })
 
-async function createBucket() {
-  if (!newName.value.trim()) return
-  creating.value = true
+async function backfill() {
+  backfilling.value = true
   try {
-    await adminStore.createBucket(newName.value.trim(), newCapacity.value, newDesc.value.trim())
-    message.success(t('admin.buckets.created'))
-    showCreate.value = false
-    newName.value = ''
-    newCapacity.value = 100
-    newDesc.value = ''
+    await adminStore.triggerBucketBackfill()
+    message.success(t('admin.buckets.backfillSuccess'))
   } catch {
-    message.error(t('common.createFailed'))
+    message.error(t('admin.buckets.backfillFailed'))
   } finally {
-    creating.value = false
+    backfilling.value = false
   }
 }
 
@@ -60,21 +50,11 @@ function healthColor(health: string) {
       <span class="count-bar">{{ t('admin.buckets.count', { n: adminStore.buckets.length }) }}</span>
       <div style="display:flex;gap:8px">
         <n-button size="small" @click="adminStore.fetchBuckets()">{{ t('common.refresh') }}</n-button>
-        <n-button size="small" type="primary" @click="showCreate = !showCreate">{{ t('common.createNew') }}</n-button>
+        <n-button size="small" type="primary" :loading="backfilling" @click="backfill">{{ t('admin.buckets.backfill') }}</n-button>
       </div>
     </div>
 
     <n-spin v-if="loading" :size="24" style="display:block;margin:40px auto;" />
-
-    <n-collapse-transition :show="showCreate">
-      <div class="create-form">
-        <n-input v-model:value="newName" :placeholder="t('common.name')" size="small" style="width:160px" />
-        <n-input-number v-model:value="newCapacity" :min="1" :max="10000" size="small" style="width:120px" />
-        <n-input v-model:value="newDesc" :placeholder="t('admin.roles.descPlaceholder')" size="small" style="width:200px" />
-        <n-button size="small" type="primary" :loading="creating" @click="createBucket">{{ t('common.create') }}</n-button>
-        <n-button size="small" @click="showCreate = false">{{ t('common.cancel') }}</n-button>
-      </div>
-    </n-collapse-transition>
 
     <div v-if="!loading" class="bucket-grid">
       <div v-for="bucket in adminStore.buckets" :key="bucket.id" class="bucket-card">

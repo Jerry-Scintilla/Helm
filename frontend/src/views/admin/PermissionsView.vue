@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAdminStore } from '@/stores/admin'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 const adminStore = useAdminStore()
 const { t } = useI18n()
@@ -18,7 +19,7 @@ onMounted(async () => {
 
 <template>
   <div>
-    <n-spin v-if="loading" :size="24" style="display:block;margin:40px auto;" />
+    <div v-if="loading" class="helm-section-loader"><HelmLoader :size="48" /></div>
     <template v-else>
       <div class="count-bar">{{ t('admin.permissions.count', { n: adminStore.permissions.length }) }}</div>
       <div class="perm-table">

@@ -2,6 +2,7 @@
 import { onMounted, ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAdminStore } from '@/stores/admin'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 const adminStore = useAdminStore()
 const { t } = useI18n()
@@ -27,7 +28,7 @@ const statDefs = computed(() => [
 
 <template>
   <div>
-    <n-spin v-if="loading" :size="24" style="display:block;margin:40px auto;" />
+    <div v-if="loading" class="helm-section-loader"><HelmLoader :size="48" /></div>
     <div v-else-if="adminStore.systemStats" class="stats-grid">
       <div v-for="def in statDefs" :key="def.key" class="stat-card">
         <div class="stat-label">{{ def.label }}</div>

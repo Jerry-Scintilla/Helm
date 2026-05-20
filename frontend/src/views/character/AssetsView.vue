@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import api from '@/api'
 import AssetItemGroup from '@/components/AssetItemGroup.vue'
 import type { AssetNode } from '@/components/AssetItemGroup.vue'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 interface LocationGroup {
   location_id: number | null
@@ -86,7 +87,7 @@ function locationTypeLabel(type: string): string {
       <span class="total-bar">{{ t('assets.locationCount', { n: total }) }}</span>
     </div>
 
-    <n-spin v-if="loading" :size="24" style="display:block;margin:60px auto;" />
+    <div v-if="loading" class="helm-page-loader"><HelmLoader :size="48" /></div>
     <div v-else-if="locations.length === 0" class="muted">
       {{ searchQuery ? t('assets.noMatch') : t('assets.noData') }}
     </div>

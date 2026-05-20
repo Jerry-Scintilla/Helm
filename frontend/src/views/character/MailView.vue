@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCharacterStore } from '@/stores/character'
 import { useI18n } from 'vue-i18n'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 const route = useRoute()
 const charStore = useCharacterStore()
@@ -38,7 +39,7 @@ function fmtDate(dt: string | null) {
   <div>
     <h1 class="page-title h-serif">{{ t('nav.mail') }}</h1>
 
-    <n-spin v-if="loading" :size="24" style="display:block;margin:60px auto;" />
+    <div v-if="loading" class="helm-page-loader"><HelmLoader :size="48" /></div>
     <div v-else class="mail-layout">
       <!-- Mail list -->
       <div class="mail-list">
@@ -60,7 +61,7 @@ function fmtDate(dt: string | null) {
 
       <!-- Mail detail -->
       <div class="mail-detail">
-        <n-spin v-if="loadingBody" :size="20" style="margin:40px auto;display:block;" />
+        <div v-if="loadingBody" class="helm-section-loader"><HelmLoader :size="36" /></div>
         <div v-else-if="charStore.selectedMail" class="mail-body-wrap">
           <h2 class="detail-subject">{{ charStore.selectedMail.subject || t('mail.noSubject') }}</h2>
           <div class="detail-meta">

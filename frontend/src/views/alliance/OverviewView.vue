@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAllianceStore } from '@/stores/alliance'
 import { useI18n } from 'vue-i18n'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 const route = useRoute()
 const allianceStore = useAllianceStore()
@@ -19,7 +20,7 @@ function fmtDate(dt: string | null) {
 
 <template>
   <div>
-    <n-spin v-if="allianceStore.loading" :size="24" style="display:block;margin:60px auto;" />
+    <div v-if="allianceStore.loading" class="helm-page-loader"><HelmLoader :size="48" /></div>
     <n-alert v-else-if="allianceStore.error" type="error" :title="allianceStore.error" />
 
     <template v-else-if="allianceStore.allianceInfo">

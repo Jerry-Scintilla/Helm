@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTaskStore, type TaskRun, type TaskListFilters } from '@/stores/tasks'
 import { useMessage } from 'naive-ui'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 const taskStore = useTaskStore()
 const message = useMessage()
@@ -275,7 +276,7 @@ function triggerByLabel(v: string): string {
       </div>
 
       <div class="table-wrap">
-        <n-spin v-if="taskStore.loadingList && !taskStore.taskList" :size="20" style="display:block;margin:40px auto;" />
+        <div v-if="taskStore.loadingList && !taskStore.taskList" class="helm-section-loader"><HelmLoader :size="36" /></div>
         <table v-else class="task-table">
           <thead>
             <tr>
@@ -338,7 +339,7 @@ function triggerByLabel(v: string): string {
     <!-- ── SCHEDULED TAB ─────────────────────────────────────────────── -->
     <div v-if="activeTab === 'scheduled'">
       <div class="table-wrap">
-        <n-spin v-if="taskStore.loadingScheduled && !taskStore.scheduledTasks.length" :size="20" style="display:block;margin:40px auto;" />
+        <div v-if="taskStore.loadingScheduled && !taskStore.scheduledTasks.length" class="helm-section-loader"><HelmLoader :size="36" /></div>
         <table v-else class="task-table">
           <thead>
             <tr>
@@ -429,7 +430,7 @@ function triggerByLabel(v: string): string {
           <button class="drawer-close" @click="drawerVisible = false">✕</button>
         </div>
         <div class="drawer-body">
-          <n-spin v-if="drawerLoading" :size="20" style="display:block;margin:40px auto;" />
+          <div v-if="drawerLoading" class="helm-section-loader"><HelmLoader :size="36" /></div>
           <template v-else-if="drawerTask">
             <div class="detail-grid">
               <div class="detail-item">

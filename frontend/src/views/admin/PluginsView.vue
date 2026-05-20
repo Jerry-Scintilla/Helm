@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, ref, nextTick, watch } from 'vue'
 import { usePluginStore } from '@/stores/plugin'
 import { useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 const store = usePluginStore()
 const message = useMessage()
@@ -141,7 +142,7 @@ function scrollLog() {
       <button class="btn-primary" @click="showInstall = true">{{ t('admin.plugins.install') }}</button>
     </div>
 
-    <n-spin v-if="loading" :size="24" style="display:block;margin:40px auto;" />
+    <div v-if="loading" class="helm-section-loader"><HelmLoader :size="48" /></div>
 
     <!-- Plugin cards -->
     <div v-if="!loading" class="plugin-grid">

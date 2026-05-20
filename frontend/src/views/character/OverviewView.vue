@@ -6,6 +6,7 @@ import { usePortraitStore } from '@/stores/portrait'
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -42,7 +43,7 @@ function renderMarkdown(content: string): string {
 
 <template>
   <div>
-    <n-spin v-if="charStore.loading" :size="24" style="display:block;margin:60px auto;" />
+    <div v-if="charStore.loading" class="helm-page-loader"><HelmLoader :size="48" /></div>
     <n-alert v-else-if="charStore.error" type="error" :title="charStore.error" />
 
     <template v-else-if="charStore.characterInfo">

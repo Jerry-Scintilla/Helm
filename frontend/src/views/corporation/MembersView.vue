@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n'
 import type { DataTableColumns } from 'naive-ui'
 import type { CorporationMember } from '@/stores/corporation'
 import { resolveSdeName } from '@/utils/sde'
+import HelmLoader from '@/components/HelmLoader.vue'
 import type { SdeName } from '@/utils/sde'
 
 const route = useRoute()
@@ -66,7 +67,7 @@ const cols: DataTableColumns<CorporationMember> = [
       />
     </div>
 
-    <n-spin v-if="loading" :size="24" style="display:block;margin:60px auto;" />
+    <div v-if="loading" class="helm-page-loader"><HelmLoader :size="48" /></div>
     <div v-else>
       <div class="total-bar">{{ t('corp.memberTotal', { filtered: filtered.length, total: corpStore.members.length }) }}</div>
       <n-data-table

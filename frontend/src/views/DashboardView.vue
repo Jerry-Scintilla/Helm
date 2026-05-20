@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import api from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { usePortraitStore } from '@/stores/portrait'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 interface CharacterSummary {
   character_id: number
@@ -83,7 +84,7 @@ async function unbind(char: CharacterSummary) {
       <n-button size="small" type="primary" @click="addCharacter">{{ t('dashboard.addCharacter') }}</n-button>
     </div>
 
-    <n-spin v-if="loading" :size="24" class="spinner" />
+    <div v-if="loading" class="helm-page-loader"><HelmLoader :size="48" /></div>
 
     <template v-else-if="characters.length === 0">
       <div class="empty-state">

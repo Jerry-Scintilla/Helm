@@ -1,17 +1,56 @@
 <script setup lang="ts">
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
 const { t } = useI18n()
+
+// Re-trigger the entrance animation every 4.2 s (matches the handoff CombinedLoop)
+const animKey = ref(0)
+let timer: ReturnType<typeof setInterval> | null = null
+onMounted(() => { timer = setInterval(() => { animKey.value++ }, 4200) })
+onBeforeUnmount(() => { if (timer) clearInterval(timer) })
+
+const letters = ['H', 'e', 'l', 'm']
 </script>
 
 <template>
   <div class="login-page">
     <div class="login-card">
-      <div class="brand">
-        <span class="brand-mark">H</span><span class="brand-text">ELM</span>
+
+      <!-- Combined entrance lockup: wheel snap + letter-in -->
+      <div class="brand-lockup" :key="animKey">
+        <!-- Wheel: rotate-snap entrance -->
+        <div class="brand-wheel-wrap">
+          <svg width="48" height="48" viewBox="0 0 100 100"
+               fill="none" stroke="#c96442" stroke-width="3.2" stroke-linecap="round">
+            <circle cx="50" cy="50" r="32"/>
+            <circle cx="50" cy="50" r="9"/>
+            <line v-for="i in 8" :key="i"
+              :x1="50 + Math.cos((i-1)*45*Math.PI/180)*12"
+              :y1="50 + Math.sin((i-1)*45*Math.PI/180)*12"
+              :x2="50 + Math.cos((i-1)*45*Math.PI/180)*44"
+              :y2="50 + Math.sin((i-1)*45*Math.PI/180)*44"
+            />
+            <circle cx="50" cy="50" r="2.2" fill="#c96442" stroke="none"/>
+          </svg>
+        </div>
+
+        <!-- Wordmark: letters fade-up in sequence -->
+        <div class="brand-wordmark">
+          <span
+            v-for="(ch, i) in letters" :key="i"
+            class="brand-letter"
+            :style="`animation-delay:${0.6 + i * 0.12}s`"
+          >{{ ch }}</span>
+          <span
+            class="brand-letter brand-stop"
+            style="animation-delay:1.2s;animation-name:helm-letter-in,helm-blink;animation-duration:.55s,1.1s;animation-timing-function:cubic-bezier(.2,.7,.3,1),steps(1);animation-delay:1.2s,2s;animation-fill-mode:forwards,none;animation-iteration-count:1,infinite"
+          >.</span>
+        </div>
       </div>
+
       <p class="subtitle">{{ t('login.subtitle') }}</p>
       <div class="divider" />
       <p class="desc">{{ t('login.desc') }}</p>
@@ -45,27 +84,41 @@ const { t } = useI18n()
   min-width: 340px;
 }
 
-.brand {
+/* Combined entrance lockup */
+.brand-lockup {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: center;
-  gap: 2px;
-  margin-bottom: 10px;
+  gap: 14px;
+  margin-bottom: 14px;
 }
-.brand-mark {
+
+.brand-wheel-wrap {
+  display: inline-flex;
+  flex-shrink: 0;
+  animation: helm-rotate-snap 1.2s cubic-bezier(.34,1.56,.64,1) both;
+  transform-origin: center;
+}
+
+.brand-wordmark {
+  display: inline-flex;
+  align-items: baseline;
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: 2rem;
+  font-size: 2.2rem;
   font-weight: 500;
-  color: #c96442;
   line-height: 1;
-}
-.brand-text {
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: 2rem;
-  font-weight: 500;
+  letter-spacing: -0.01em;
   color: #faf9f5;
-  letter-spacing: 5px;
-  line-height: 1;
+}
+
+.brand-letter {
+  display: inline-block;
+  opacity: 0;
+  animation: helm-letter-in 0.55s cubic-bezier(.2,.7,.3,1) forwards;
+}
+
+.brand-stop {
+  color: #c96442;
 }
 
 .subtitle {
@@ -105,5 +158,26 @@ const { t } = useI18n()
 .fine-print {
   font-size: 0.72rem;
   color: #3d3d3a;
+}
+
+/* Keyframes scoped via global block in HelmWheel.vue; duplicated here for isolation */
+@keyframes helm-rotate-snap {
+  0%   { transform: rotate(-60deg); opacity: 0; }
+  60%  { transform: rotate(8deg);   opacity: 1; }
+  80%  { transform: rotate(-3deg); }
+  100% { transform: rotate(0deg); }
+}
+@keyframes helm-letter-in {
+  from { opacity: 0; transform: translateY(6px); filter: blur(2px); }
+  to   { opacity: 1; transform: translateY(0);   filter: blur(0);   }
+}
+@keyframes helm-blink {
+  0%, 49%  { opacity: 1;   }
+  50%, 100%{ opacity: 0.2; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-wheel-wrap { animation: none; }
+  .brand-letter     { animation: none; opacity: 1; filter: none; }
 }
 </style>

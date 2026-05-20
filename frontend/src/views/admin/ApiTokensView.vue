@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useApiTokenStore } from '@/stores/apiToken'
 import { useMessage } from 'naive-ui'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 const tokenStore = useApiTokenStore()
 const message = useMessage()
@@ -101,7 +102,7 @@ function fmtDate(dt: string | null) {
       </div>
     </n-collapse-transition>
 
-    <n-spin v-if="loading" :size="24" style="display:block;margin:40px auto;" />
+    <div v-if="loading" class="helm-section-loader"><HelmLoader :size="48" /></div>
     <div v-else class="token-list">
       <div v-for="token in tokenStore.tokens" :key="token.id" class="token-card">
         <div class="token-header">

@@ -5,6 +5,7 @@ import { useCharacterStore } from '@/stores/character'
 import { useI18n } from 'vue-i18n'
 import { resolveSdeName } from '@/utils/sde'
 import type { SkillGroup } from '@/stores/character'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 const route = useRoute()
 const charStore = useCharacterStore()
@@ -172,7 +173,7 @@ function onLeave(el: Element) {
 
     <!-- Skill groups -->
     <section class="section">
-      <div v-if="!charStore.skills" class="muted">{{ t('common.loading') }}</div>
+      <div v-if="!charStore.skills" class="helm-page-loader"><HelmLoader :size="48" /></div>
       <div v-else-if="filteredGroups.length === 0" class="muted">{{ t('skills.notFound') }}</div>
       <div v-else class="group-grid">
         <div

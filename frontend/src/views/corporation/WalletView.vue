@@ -5,6 +5,7 @@ import { useCorporationStore } from '@/stores/corporation'
 import { useI18n } from 'vue-i18n'
 import type { DataTableColumns } from 'naive-ui'
 import type { CorporationJournalEntry } from '@/stores/corporation'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 const route = useRoute()
 const corpStore = useCorporationStore()
@@ -64,7 +65,7 @@ const journalCols: DataTableColumns<CorporationJournalEntry> = [
   <div>
     <h1 class="page-title h-serif">{{ t('corp.wallet') }}</h1>
 
-    <n-spin v-if="loading" :size="24" style="display:block;margin:60px auto;" />
+    <div v-if="loading" class="helm-page-loader"><HelmLoader :size="48" /></div>
     <template v-else>
       <!-- Division selector -->
       <div class="division-row">

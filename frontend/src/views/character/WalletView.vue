@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n'
 import type { DataTableColumns } from 'naive-ui'
 import type { WalletJournalEntry, WalletTransaction } from '@/stores/character'
 import { resolveSdeName } from '@/utils/sde'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 const route = useRoute()
 const charStore = useCharacterStore()
@@ -91,7 +92,7 @@ const txCols: DataTableColumns<WalletTransaction> = [
 
     <n-tabs v-model:value="tab" type="line" animated>
       <n-tab-pane name="journal" :tab="t('wallet.journal')">
-        <n-spin v-if="loading" :size="20" style="display:block;margin:40px auto;" />
+        <div v-if="loading" class="helm-section-loader"><HelmLoader :size="36" /></div>
         <n-data-table
           v-else
           :columns="journalCols"
@@ -108,7 +109,7 @@ const txCols: DataTableColumns<WalletTransaction> = [
       </n-tab-pane>
 
       <n-tab-pane name="transactions" :tab="t('wallet.transactions')">
-        <n-spin v-if="loading" :size="20" style="display:block;margin:40px auto;" />
+        <div v-if="loading" class="helm-section-loader"><HelmLoader :size="36" /></div>
         <n-data-table
           v-else
           :columns="txCols"

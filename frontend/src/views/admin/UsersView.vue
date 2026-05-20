@@ -6,6 +6,7 @@ import type { DataTableColumns } from 'naive-ui'
 import type { AdminUser } from '@/stores/admin'
 import { h } from 'vue'
 import { NButton, NTag, NSpace, useMessage } from 'naive-ui'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 const adminStore = useAdminStore()
 const message = useMessage()
@@ -114,7 +115,7 @@ const cols: DataTableColumns<AdminUser> = [
 
 <template>
   <div>
-    <n-spin v-if="loading" :size="24" style="display:block;margin:40px auto;" />
+    <div v-if="loading" class="helm-section-loader"><HelmLoader :size="48" /></div>
     <template v-else>
       <div class="count-bar">{{ t('admin.users.count', { n: adminStore.users.length }) }}</div>
       <n-data-table

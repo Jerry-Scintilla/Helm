@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import api from '@/api'
 import { resolveSdeName } from '@/utils/sde'
 import type { SdeName } from '@/utils/sde'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -125,7 +126,7 @@ onMounted(fetchConfig)
         <n-button size="small" :loading="configLoading" @click="fetchConfig">{{ t('common.refresh') }}</n-button>
       </div>
 
-      <n-spin v-if="configLoading" :size="20" style="display:block;margin:32px auto;" />
+      <div v-if="configLoading" class="helm-inline-loader"><HelmLoader :size="36" /></div>
 
       <template v-else>
         <div class="config-body">

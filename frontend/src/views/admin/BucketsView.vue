@@ -3,6 +3,7 @@ import { onMounted, ref, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAdminStore } from '@/stores/admin'
 import { useMessage } from 'naive-ui'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 const adminStore = useAdminStore()
 const message = useMessage()
@@ -54,7 +55,7 @@ function healthColor(health: string) {
       </div>
     </div>
 
-    <n-spin v-if="loading" :size="24" style="display:block;margin:40px auto;" />
+    <div v-if="loading" class="helm-section-loader"><HelmLoader :size="48" /></div>
 
     <div v-if="!loading" class="bucket-grid">
       <div v-for="bucket in adminStore.buckets" :key="bucket.id" class="bucket-card">

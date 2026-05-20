@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAdminStore } from '@/stores/admin'
 import { useMessage } from 'naive-ui'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 const adminStore = useAdminStore()
 const message = useMessage()
@@ -107,7 +108,7 @@ const isRunning = computed(() => adminStore.sdeStatus?.status === 'running')
       <n-button size="small" @click="adminStore.fetchSdeStatus()">{{ t('common.refresh') }}</n-button>
     </div>
 
-    <n-spin v-if="loading" :size="24" style="display:block;margin:40px auto;" />
+    <div v-if="loading" class="helm-section-loader"><HelmLoader :size="48" /></div>
 
     <template v-else-if="adminStore.sdeStatus">
       <div class="sde-grid">

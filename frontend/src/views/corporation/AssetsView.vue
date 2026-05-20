@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n'
 import type { DataTableColumns } from 'naive-ui'
 import type { CorporationAsset } from '@/stores/corporation'
 import { resolveSdeName } from '@/utils/sde'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 const route = useRoute()
 const corpStore = useCorporationStore()
@@ -53,7 +54,7 @@ const cols: DataTableColumns<CorporationAsset> = [
   <div>
     <h1 class="page-title h-serif">{{ t('corp.assets') }}</h1>
 
-    <n-spin v-if="loading" :size="24" style="display:block;margin:60px auto;" />
+    <div v-if="loading" class="helm-page-loader"><HelmLoader :size="48" /></div>
     <template v-else>
       <div class="total-bar">{{ t('corp.assetsCount', { n: corpStore.assets.length }) }}</div>
       <n-data-table

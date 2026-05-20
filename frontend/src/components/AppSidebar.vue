@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, h, ref } from 'vue'
+import HelmWheel from './HelmWheel.vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import type { MenuOption } from 'naive-ui'
@@ -117,8 +118,8 @@ function handleSelect(key: string) {
 <template>
   <div class="sider" :class="{ collapsed }">
     <div class="brand" @click="collapsed = !collapsed">
-      <span class="brand-mark">H</span>
-      <span v-if="!collapsed" class="brand-text">ELM</span>
+      <HelmWheel :size="20" color="#c96442" variant="auto" class="brand-wheel" />
+      <span v-if="!collapsed" class="brand-wordmark">Helm<span class="brand-stop">.</span></span>
       <span v-if="!collapsed" class="collapse-hint">‹</span>
       <span v-else class="collapse-hint rotated">‹</span>
     </div>
@@ -165,20 +166,20 @@ function handleSelect(key: string) {
   white-space: nowrap;
   overflow: hidden;
 }
-.brand-mark {
-  font-family: Georgia, serif;
-  font-size: 1.2rem;
-  font-weight: 500;
-  color: #c96442;
+.brand-wheel {
   flex-shrink: 0;
 }
-.brand-text {
-  font-family: Georgia, serif;
-  font-size: 1.2rem;
+.brand-wordmark {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.15rem;
   font-weight: 500;
   color: #faf9f5;
-  letter-spacing: 3px;
+  letter-spacing: -0.01em;
   flex: 1;
+  white-space: nowrap;
+}
+.brand-stop {
+  color: #c96442;
 }
 .collapse-hint {
   font-size: 0.75rem;

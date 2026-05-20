@@ -3,6 +3,7 @@ import { onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCharacterStore } from '@/stores/character'
 import { useI18n } from 'vue-i18n'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 const route = useRoute()
 const charStore = useCharacterStore()
@@ -67,7 +68,7 @@ function fmtDate(dt: string | null) {
       </div>
     </div>
 
-    <n-spin v-if="loading" :size="24" style="display:block;margin:60px auto;" />
+    <div v-if="loading" class="helm-page-loader"><HelmLoader :size="48" /></div>
     <div v-else-if="charStore.notifications.length === 0" class="muted">{{ t('notif.empty') }}</div>
 
     <div v-else class="notification-list">

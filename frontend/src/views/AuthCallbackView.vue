@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/api'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -46,7 +47,7 @@ onMounted(async () => {
       <p class="hint">正在返回 Dashboard...</p>
     </template>
     <template v-else>
-      <p>正在处理登录...</p>
+      <HelmLoader :size="72" color="#c96442" caption="正在处理登录" overlay />
     </template>
   </div>
 </template>
@@ -59,7 +60,9 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: #8b949e;
+  background: #141413;
+  color: #b0aea5;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 .error {

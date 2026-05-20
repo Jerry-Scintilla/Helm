@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useAdminStore } from '@/stores/admin'
 import type { AdminRole } from '@/stores/admin'
 import { useMessage } from 'naive-ui'
+import HelmLoader from '@/components/HelmLoader.vue'
 
 const adminStore = useAdminStore()
 const message = useMessage()
@@ -95,7 +96,7 @@ async function removePermission(permId: number) {
 
 <template>
   <div>
-    <n-spin v-if="loading" :size="24" style="display:block;margin:40px auto;" />
+    <div v-if="loading" class="helm-section-loader"><HelmLoader :size="48" /></div>
     <template v-else>
       <div class="section-header">
         <span class="count-bar">{{ t('admin.roles.count', { n: adminStore.roles.length }) }}</span>

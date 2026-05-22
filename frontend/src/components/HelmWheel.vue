@@ -26,7 +26,7 @@ const spokesFullRaw = Array.from({ length: 8 }, (_, i) => {
   return {
     x1: 50 + Math.cos(a) * 12, y1: 50 + Math.sin(a) * 12,
     x2: 50 + Math.cos(a) * 44, y2: 50 + Math.sin(a) * 44,
-    delay: `${0.4 + i * 0.06}s`,
+    delay: `${0.2 + i * 0.03}s`,
   }
 })
 
@@ -118,7 +118,7 @@ const spokesTinyRaw = Array.from({ length: 4 }, (_, i) => {
     style="display:block;flex-shrink:0"
   >
     <circle cx="50" cy="50" r="32" class="helm-draw-ring" pathLength="220"/>
-    <circle cx="50" cy="50" r="9"  class="helm-draw-ring" pathLength="220" style="animation-delay:0.2s"/>
+    <circle cx="50" cy="50" r="9"  class="helm-draw-ring" pathLength="220" style="animation-delay:0.1s"/>
     <line
       v-for="(s, i) in spokesFullRaw" :key="i"
       :x1="s.x1" :y1="s.y1" :x2="s.x2" :y2="s.y2"
@@ -187,14 +187,14 @@ const spokesTinyRaw = Array.from({ length: 4 }, (_, i) => {
 .helm-draw-ring {
   stroke-dasharray: 220;
   stroke-dashoffset: 220;
-  animation: helm-draw-ring-kf 1.6s ease-out forwards infinite;
+  animation: helm-draw-ring-kf 0.8s ease-out forwards infinite;
   animation-direction: alternate;
 }
 
 .helm-draw-spoke {
   stroke-dasharray: 60;
   stroke-dashoffset: 60;
-  animation: helm-draw-spoke-kf 1.4s ease-out forwards infinite;
+  animation: helm-draw-spoke-kf 0.7s ease-out forwards infinite;
   animation-direction: alternate;
 }
 

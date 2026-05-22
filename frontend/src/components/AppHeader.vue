@@ -92,6 +92,13 @@ function handleLangSelect(key: string) {
   <div class="header">
     <div class="header-left">
       <slot name="title" />
+      <span class="header-divider" aria-hidden="true">|</span>
+      <a
+        class="header-copyright"
+        href="https://github.com/Jerry-Scintilla/Helm"
+        target="_blank"
+        rel="noopener noreferrer"
+      >版权信息 © 2026 | Helm</a>
     </div>
     <div class="header-right">
       <!-- Language dropdown -->
@@ -210,4 +217,18 @@ function handleLangSelect(key: string) {
 }
 .lang-btn:hover { border-color: #5e5d59; color: #b0aea5; }
 .lang-btn .caret { font-size: 0.6rem; color: #5e5d59; }
+.header-divider {
+  color: #30302e;
+  font-size: 0.75rem;
+  user-select: none;
+}
+.header-copyright {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: #5e5d59;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.header-copyright:hover { color: #b0aea5; }
 </style>

@@ -70,10 +70,10 @@ withDefaults(defineProps<{
   height: 3px;
   border-radius: 50%;
   background: #c96442;
-  animation: helm-blink 0.9s steps(1) infinite;
+  animation: helm-blink 0.5s steps(1) infinite;
 }
-.helm-loader__dots i:nth-child(2) { animation-delay: 0.15s; }
-.helm-loader__dots i:nth-child(3) { animation-delay: 0.30s; }
+.helm-loader__dots i:nth-child(2) { animation-delay: 0.08s; }
+.helm-loader__dots i:nth-child(3) { animation-delay: 0.16s; }
 
 @keyframes helm-blink {
   0%, 49%  { opacity: 1;   }

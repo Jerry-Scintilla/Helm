@@ -7,6 +7,7 @@ import logging
 from datetime import UTC, datetime
 
 from celery.signals import task_failure, task_prerun, task_retry, task_revoked, task_success, worker_init
+from celery.worker.control import control_command
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
@@ -16,8 +17,13 @@ logger = logging.getLogger(__name__)
 
 _SessionFactory = None
 
-# Beat-scheduled task names (used to detect triggered_by="scheduled")
-_BEAT_TASK_NAMES: set[str] = set()
+# Beat-scheduled task names (used to detect triggered_by="scheduled").
+# Built-in names are static; plugin names are refreshed from Redis with a TTL
+# since plugins can register periodic tasks at runtime.
+_BUILTIN_BEAT_TASK_NAMES: set[str] = set()
+_PLUGIN_BEAT_TASK_NAMES: set[str] = set()
+_PLUGIN_BEAT_NAMES_TS: float = 0.0
+_PLUGIN_BEAT_NAMES_TTL = 60.0  # seconds
 
 
 def _get_session_factory():
@@ -31,15 +37,40 @@ def _get_session_factory():
 
 
 def _get_beat_task_names() -> set[str]:
-    """Lazily load beat task names from celery config."""
-    global _BEAT_TASK_NAMES
-    if not _BEAT_TASK_NAMES:
+    """Beat task names = static built-ins ∪ plugin entries (Redis, TTL-cached)."""
+    global _BUILTIN_BEAT_TASK_NAMES, _PLUGIN_BEAT_TASK_NAMES, _PLUGIN_BEAT_NAMES_TS
+    import time
+
+    if not _BUILTIN_BEAT_TASK_NAMES:
         try:
             from app.tasks.celery_app import celery_app
-            _BEAT_TASK_NAMES = {v["task"] for v in celery_app.conf.beat_schedule.values()}
+            _BUILTIN_BEAT_TASK_NAMES = {v["task"] for v in celery_app.conf.beat_schedule.values()}
         except Exception:
             pass
-    return _BEAT_TASK_NAMES
+
+    now = time.monotonic()
+    if now - _PLUGIN_BEAT_NAMES_TS >= _PLUGIN_BEAT_NAMES_TTL:
+        try:
+            import json
+            import redis
+            from app.tasks.plugin_schedules import PLUGIN_SCHEDULES_KEY
+            r = redis.Redis.from_url(settings.redis_url, socket_connect_timeout=2)
+            raw = r.hgetall(PLUGIN_SCHEDULES_KEY)
+            r.close()
+            names = set()
+            for payload in raw.values():
+                try:
+                    cfg = json.loads(payload.decode() if isinstance(payload, bytes) else payload)
+                    if cfg.get("task"):
+                        names.add(cfg["task"])
+                except (ValueError, TypeError, AttributeError):
+                    continue
+            _PLUGIN_BEAT_TASK_NAMES = names
+        except Exception:
+            pass
+        _PLUGIN_BEAT_NAMES_TS = now
+
+    return _BUILTIN_BEAT_TASK_NAMES | _PLUGIN_BEAT_TASK_NAMES
 
 
 def _resolve_triggered_by(task) -> str:
@@ -123,6 +154,36 @@ def _load_plugin_tasks() -> None:
                     )
         except Exception as exc:
             logger.warning("worker_init: failed to load plugin '%s': %s", entry_point, exc)
+
+
+@control_command(args=[("module_paths", list)])
+def import_plugin_tasks(state, module_paths):
+    """Remote-control command: import plugin task modules into a *running* worker.
+
+    Broadcast by the FastAPI process when a plugin is hot-installed/enabled.
+    Importing the module triggers the @celery_app.task decorators, registering
+    the tasks on this worker's app. We then rebuild the consumer's strategy map
+    so the freshly-registered tasks become dispatchable without a restart —
+    otherwise the consumer keeps the strategies dict it built at startup and the
+    new task names raise KeyError on receipt.
+    """
+    import importlib
+
+    loaded: list[str] = []
+    for module_path in module_paths or []:
+        try:
+            importlib.import_module(module_path)
+            loaded.append(module_path)
+            logger.info("import_plugin_tasks: loaded task module '%s'", module_path)
+        except Exception as exc:
+            logger.warning("import_plugin_tasks: failed to import '%s': %s", module_path, exc)
+
+    try:
+        state.consumer.update_strategies()
+    except Exception as exc:
+        logger.warning("import_plugin_tasks: update_strategies() failed: %s", exc)
+
+    return {"ok": True, "loaded": loaded}
 
 
 @task_prerun.connect

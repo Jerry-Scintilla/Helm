@@ -252,6 +252,24 @@ class HelmPlugin(ABC):
     def get_tasks(self) -> list:
         return []
 
+    def get_beat_schedule(self) -> dict:
+        """声明插件的 Celery Beat 定时任务（可热加载）。
+
+        返回结构与 Celery 原生 beat_schedule 一致，键为条目本地名（在插件内唯一）：
+
+            return {
+                "analyze-all": {
+                    "task": "monitor.analyze_all",   # 必须是 get_tasks() 中已注册的任务名
+                    "schedule": 300.0,               # 间隔秒数（float）
+                    "options": {"queue": "default"}, # 可选，路由队列等
+                },
+            }
+
+        条目会被命名空间化为 "{plugin_name}:{key}" 后注入运行中的 Beat 进程，
+        无需重启。管理员可像内置定时任务一样在后台覆盖其执行间隔。
+        """
+        return {}
+
     def get_sidebar_items(self) -> list[SidebarItem]:
         return []
 

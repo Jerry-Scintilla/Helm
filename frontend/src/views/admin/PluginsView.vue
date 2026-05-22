@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, nextTick, watch } from 'vue'
 import { usePluginStore } from '@/stores/plugin'
+import { useAuthStore } from '@/stores/auth'
 import { useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
+import api from '@/api'
 import HelmLoader from '@/components/HelmLoader.vue'
 
 const store = usePluginStore()
+const auth = useAuthStore()
 const message = useMessage()
 const { t } = useI18n()
 const loading = ref(true)
@@ -21,6 +24,11 @@ const logContainer = ref<HTMLElement | null>(null)
 const showUninstall = ref(false)
 const uninstallTarget = ref('')
 
+// Re-login reminder modal
+const showReloginModal = ref(false)
+const reloginPluginName = ref('')
+const missingScopes = ref<string[]>([])
+
 onMounted(async () => {
   store.startSSE()
   try {
@@ -34,16 +42,37 @@ onUnmounted(() => {
   store.stopSSE()
 })
 
-watch(() => store.installing, (cur, prev) => {
+watch(() => store.installing, async (cur, prev) => {
   if (prev && !cur && showInstall.value) {
     if (store.installSucceeded) {
       showInstall.value = false
       message.success(t('admin.plugins.installSuccess'))
+      if (store.lastInstalledPlugin) {
+        await checkNewScopes(store.lastInstalledPlugin)
+      }
     } else {
       message.error(t('admin.plugins.installFailed'))
     }
   }
 })
+
+async function checkNewScopes(pluginName: string) {
+  const plugin = store.plugins.find(p => p.name === pluginName)
+  if (!plugin?.meta?.esi_scopes?.length) return
+  if (!auth.characterId) return
+  try {
+    const res = await api.get<{ scopes: string }>(`/api/v1/characters/${auth.characterId}/`)
+    const granted = new Set(res.data.scopes.split(' ').filter(Boolean))
+    const missing = plugin.meta.esi_scopes.filter(s => !granted.has(s))
+    if (missing.length > 0) {
+      reloginPluginName.value = pluginName
+      missingScopes.value = missing
+      showReloginModal.value = true
+    }
+  } catch {
+    // best-effort; never block the UI
+  }
+}
 
 async function handleInstall() {
   if (installTab.value === 'pypi') {
@@ -96,6 +125,7 @@ async function toggleEnable(name: string, enabled: boolean) {
     } else {
       await store.enablePlugin(name)
       message.success(t('common.enable'))
+      await checkNewScopes(name)
     }
   } catch (e: any) {
     message.error(e.response?.data?.detail ?? t('common.operationFailed'))
@@ -225,6 +255,25 @@ function scrollLog() {
         </div>
       </template>
     </n-modal>
+
+    <!-- Re-login reminder modal -->
+    <n-modal
+      v-model:show="showReloginModal"
+      preset="card"
+      :title="t('admin.plugins.reloginRequired')"
+      style="width:480px;max-width:95vw"
+    >
+      <p class="relogin-desc" v-html="t('admin.plugins.reloginDesc', { name: `<strong>${reloginPluginName}</strong>` })" />
+      <ul class="scope-list">
+        <li v-for="scope in missingScopes" :key="scope" class="scope-item">{{ scope }}</li>
+      </ul>
+      <template #footer>
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <n-button @click="showReloginModal = false">{{ t('admin.plugins.reloginLater') }}</n-button>
+          <button class="btn-primary" @click="auth.loginWithEve()">{{ t('admin.plugins.reloginNow') }}</button>
+        </div>
+      </template>
+    </n-modal>
   </div>
 </template>
 
@@ -347,4 +396,17 @@ function scrollLog() {
 
 .confirm-text { font-size: 0.9rem; color: #b0aea5; line-height: 1.6; }
 .confirm-text :deep(strong) { color: #faf9f5; }
+
+.relogin-desc { font-size: 0.88rem; color: #b0aea5; line-height: 1.6; margin: 0 0 12px; }
+.relogin-desc :deep(strong) { color: #faf9f5; }
+.scope-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.scope-item {
+  font-size: 0.75rem;
+  font-family: 'Anthropic Mono', monospace;
+  background: #141413;
+  border: 1px solid #30302e;
+  border-radius: 4px;
+  padding: 4px 10px;
+  color: #c96442;
+}
 </style>

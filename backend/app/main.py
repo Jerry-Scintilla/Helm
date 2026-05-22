@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.config import settings
 
@@ -98,14 +99,31 @@ app.add_middleware(
 )
 
 
-@app.middleware("http")
-async def log_slow_requests(request: Request, call_next):
-    start = time.perf_counter()
-    response = await call_next(request)
-    ms = (time.perf_counter() - start) * 1000
-    if ms > 2000:
-        logger.warning("SLOW %s %s %d %.1fms", request.method, request.url.path, response.status_code, ms)
-    return response
+class _SlowRequestLogger:
+    """Pure-ASGI slow-request logger — avoids BaseHTTPMiddleware's streaming bug."""
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        start = time.perf_counter()
+        status_code = 0
+
+        async def _send(message) -> None:
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message["status"]
+            await send(message)
+
+        await self.app(scope, receive, _send)
+        ms = (time.perf_counter() - start) * 1000
+        if ms > 2000:
+            logger.warning("SLOW %s %s %d %.1fms",
+                           scope.get("method", ""), scope.get("path", ""), status_code, ms)
+
+app.add_middleware(_SlowRequestLogger)
 
 app.include_router(auth.router)
 app.include_router(characters.router)

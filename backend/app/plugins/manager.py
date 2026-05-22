@@ -29,6 +29,11 @@ from app.plugins.installer import (
     run_plugin_migrations,
 )
 from app.plugins.registry import HELM_SDK_VERSION, extension_registry, registry
+from app.tasks.plugin_schedules import (
+    remove_plugin_schedules,
+    serialize_plugin_beat_schedule,
+    sync_plugin_schedules,
+)
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -104,12 +109,52 @@ def _unmount_router(name: str) -> None:
 # ── Celery task registration ──────────────────────────────────────────────────
 
 def _register_celery_tasks(plugin: HelmPlugin) -> None:
-    for module_path in plugin.get_tasks():
+    module_paths = list(plugin.get_tasks())
+    for module_path in module_paths:
         try:
             importlib.import_module(module_path)
             logger.info("Registered Celery tasks from %s", module_path)
         except Exception as exc:
             logger.warning("Failed to import task module %s: %s", module_path, exc)
+
+    # The import above only registers the tasks in *this* (FastAPI) process.
+    # Running Celery workers are separate processes that imported plugin task
+    # modules at worker_init and won't see these new ones — dispatching them
+    # would raise "Received unregistered task". Broadcast a control command so
+    # any live workers import the modules and rebuild their strategy map.
+    if not module_paths:
+        return
+    try:
+        from app.tasks.celery_app import celery_app
+        celery_app.control.broadcast(
+            "import_plugin_tasks",
+            arguments={"module_paths": module_paths},
+        )
+        logger.info("Broadcast import_plugin_tasks to workers: %s", module_paths)
+    except Exception as exc:
+        logger.warning("Failed to broadcast import_plugin_tasks for '%s': %s", plugin.name, exc)
+
+
+# ── Plugin Beat schedules ───────────────────────────────────────────────────────
+
+async def _publish_plugin_schedules(plugin: HelmPlugin) -> None:
+    """Push a plugin's declared Beat schedule to Redis so the running Beat
+    process hot-loads its periodic tasks (see app.tasks.helm_scheduler)."""
+    entries = serialize_plugin_beat_schedule(plugin)
+    try:
+        await sync_plugin_schedules(entries, plugin.name)
+        if entries:
+            logger.info("Published %d Beat schedule entries for '%s'", len(entries), plugin.name)
+    except Exception as exc:
+        logger.warning("Failed to publish Beat schedules for '%s': %s", plugin.name, exc)
+
+
+async def _withdraw_plugin_schedules(name: str) -> None:
+    """Remove a plugin's Beat entries from Redis (Beat drops them next tick)."""
+    try:
+        await remove_plugin_schedules(name)
+    except Exception as exc:
+        logger.warning("Failed to withdraw Beat schedules for '%s': %s", name, exc)
 
 
 # ── Permission seeding ────────────────────────────────────────────────────────
@@ -257,6 +302,7 @@ async def install_plugin(package_name: str, whl_path: Path | None = None) -> dic
                 for s in plugin_instance.get_sidebar_items()
             ],
             "character_submodules": _serialize_character_submodules(plugin_instance, plugin_class.name),
+            "beat_schedule": serialize_plugin_beat_schedule(plugin_instance),
         }
         logger.debug(
             "[install:%s] meta snapshot — esi_scopes=%s  sidebar_items=%d  character_submodules=%d",
@@ -315,6 +361,7 @@ async def install_plugin(package_name: str, whl_path: Path | None = None) -> dic
     registry.register(plugin_instance)
     _mount_router(plugin_instance)
     _register_celery_tasks(plugin_instance)
+    await _publish_plugin_schedules(plugin_instance)
 
     # 10. (schema-driven frontend — no static file mount needed)
     logger.info("[install:%s] step 10/11 — skipped (schema-driven frontend)", package_name)
@@ -368,12 +415,14 @@ async def enable_plugin(name: str) -> None:
                 for s in plugin_instance.get_sidebar_items()
             ],
             "character_submodules": _serialize_character_submodules(plugin_instance, name),
+            "beat_schedule": serialize_plugin_beat_schedule(plugin_instance),
         }
         await db.commit()
 
     registry.register(plugin_instance)
     _mount_router(plugin_instance)
     _register_celery_tasks(plugin_instance)
+    await _publish_plugin_schedules(plugin_instance)
 
     ctx = _make_context()
     try:
@@ -398,6 +447,7 @@ async def disable_plugin(name: str) -> None:
     extension_registry.unregister_plugin(name)
     _unmount_router(name)
     registry.unregister(name)
+    await _withdraw_plugin_schedules(name)
 
     async with AsyncSessionLocal() as db:
         db_plugin = (await db.execute(
@@ -464,5 +514,9 @@ async def uninstall_plugin(name: str) -> None:
             await db.delete(db_plugin)
             await db.commit()
             logger.info("Deleted plugin record '%s' from database", name)
+
+    # Belt-and-suspenders: ensure Beat entries are gone even if the plugin was
+    # not loaded (so disable_plugin's withdraw never ran).
+    await _withdraw_plugin_schedules(name)
 
     await publish_event("plugin.uninstalled", {"name": name})

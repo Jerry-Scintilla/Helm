@@ -41,6 +41,7 @@ export const usePluginStore = defineStore('plugin', () => {
   const installing = ref(false)
   const installSucceeded = ref(false)
   const uninstallInProgress = ref(false)
+  const lastInstalledPlugin = ref<string | null>(null)
   // Tracks a cache-bust token (Unix ms timestamp) per plugin name.
   // Appended as ?_v=<token> to iframe src to force reload after status change.
   const pluginCacheTokens = ref<Record<string, number>>({})
@@ -106,16 +107,19 @@ export const usePluginStore = defineStore('plugin', () => {
     const token = localStorage.getItem('access_token') ?? ''
     const base = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
     _sse = new EventSource(`${base}/api/v1/admin/plugins/events?token=${token}`)
-    _sse.onmessage = (e) => {
+    _sse.onmessage = async (e) => {
       try {
         const ev = JSON.parse(e.data) as { type: string; line?: string; name?: string }
         if (ev.type === 'plugin.install.log' && ev.line !== undefined) {
           installLog.value.push(ev.line)
         } else if (ev.type === 'plugin.installed') {
+          if (ev.name) {
+            bumpCacheToken(ev.name)
+            lastInstalledPlugin.value = ev.name
+          }
+          await fetchPlugins()
           installing.value = false
           installSucceeded.value = true
-          if (ev.name) bumpCacheToken(ev.name)
-          fetchPlugins()
         } else if (ev.type === 'plugin.uninstalled') {
           uninstallInProgress.value = false
           if (ev.name) bumpCacheToken(ev.name)
@@ -152,6 +156,7 @@ export const usePluginStore = defineStore('plugin', () => {
     installing,
     installSucceeded,
     uninstallInProgress,
+    lastInstalledPlugin,
     pluginCacheTokens,
     fetchPlugins,
     fetchEnabledPlugins,

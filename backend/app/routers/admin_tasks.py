@@ -14,8 +14,33 @@ from app.models.task_run import TaskRun
 from app.models.user import User
 from app.tasks.celery_app import celery_app
 from app.tasks.helm_scheduler import OVERRIDES_KEY
+from app.tasks.plugin_schedules import read_plugin_schedules
 
 router = APIRouter(prefix="/api/v1/admin/tasks", tags=["admin-tasks"])
+
+
+async def _all_scheduled_entries() -> dict[str, dict]:
+    """Merge built-in beat_schedule with hot-loaded plugin entries (from Redis).
+
+    Returns {name: {"task", "schedule", "options", "plugin"}} where plugin is
+    None for built-in entries. Plugin entries are namespaced "{plugin}:{key}".
+    """
+    combined: dict[str, dict] = {}
+    for name, entry in celery_app.conf.beat_schedule.items():
+        combined[name] = {
+            "task": entry["task"],
+            "schedule": float(entry.get("schedule", 0)),
+            "options": entry.get("options", {}) or {},
+            "plugin": None,
+        }
+    for name, cfg in (await read_plugin_schedules()).items():
+        combined[name] = {
+            "task": cfg.get("task"),
+            "schedule": float(cfg.get("schedule", 0)),
+            "options": cfg.get("options", {}) or {},
+            "plugin": cfg.get("plugin"),
+        }
+    return combined
 
 
 # ── Task History ──────────────────────────────────────────────────────────────
@@ -122,7 +147,7 @@ async def list_scheduled_tasks(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_permission("global.superuser")),
 ):
-    beat = celery_app.conf.beat_schedule
+    entries = await _all_scheduled_entries()
 
     # Load Redis overrides
     async with aioredis.Redis(connection_pool=get_pool()) as r:
@@ -135,9 +160,9 @@ async def list_scheduled_tasks(
             pass
 
     result = []
-    for name, entry in beat.items():
+    for name, entry in entries.items():
         task_name = entry["task"]
-        default_seconds = float(entry.get("schedule", 0))
+        default_seconds = entry["schedule"]
         effective_seconds = overrides.get(name, default_seconds)
         queue = entry.get("options", {}).get("queue", "default")
 
@@ -167,6 +192,7 @@ async def list_scheduled_tasks(
             "name": name,
             "task": task_name,
             "queue": queue,
+            "plugin": entry.get("plugin"),
             "default_seconds": default_seconds,
             "schedule_seconds": effective_seconds,
             "is_overridden": name in overrides,
@@ -188,7 +214,7 @@ async def update_schedule_interval(
     body: IntervalUpdate,
     _: User = Depends(require_permission("global.superuser")),
 ):
-    if name not in celery_app.conf.beat_schedule:
+    if name not in await _all_scheduled_entries():
         raise HTTPException(status_code=404, detail=f"Scheduled task '{name}' not found")
     if body.interval_seconds < 10:
         raise HTTPException(status_code=422, detail="interval_seconds must be >= 10")
@@ -202,11 +228,12 @@ async def reset_schedule_interval(
     name: str,
     _: User = Depends(require_permission("global.superuser")),
 ):
-    if name not in celery_app.conf.beat_schedule:
+    entries = await _all_scheduled_entries()
+    if name not in entries:
         raise HTTPException(status_code=404, detail=f"Scheduled task '{name}' not found")
     async with aioredis.Redis(connection_pool=get_pool()) as r:
         await r.hdel(OVERRIDES_KEY, name)
-    default = float(celery_app.conf.beat_schedule[name].get("schedule", 0))
+    default = entries[name]["schedule"]
     return {"name": name, "interval_seconds": default, "is_overridden": False}
 
 
@@ -215,11 +242,11 @@ async def trigger_scheduled_task(
     name: str,
     _: User = Depends(require_permission("global.superuser")),
 ):
-    beat = celery_app.conf.beat_schedule
-    if name not in beat:
+    entries = await _all_scheduled_entries()
+    if name not in entries:
         raise HTTPException(status_code=404, detail=f"Scheduled task '{name}' not found")
 
-    entry = beat[name]
+    entry = entries[name]
     task_name = entry["task"]
     queue = entry.get("options", {}).get("queue", "default")
 

@@ -323,7 +323,11 @@
       "statusDisabled": "Disabled",
       "statusError": "Error",
       "statusInstalled": "Installed",
-      "statusUninstalled": "Uninstalled"
+      "statusUninstalled": "Uninstalled",
+      "reloginRequired": "Re-login Required",
+      "reloginDesc": "Plugin {name} requires the following new ESI permissions that your current token does not include. Please re-login to Helm to grant them:",
+      "reloginNow": "Re-login Now",
+      "reloginLater": "Later"
     }
   },
   "char": {

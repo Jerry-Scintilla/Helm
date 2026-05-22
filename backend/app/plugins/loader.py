@@ -12,7 +12,8 @@ from app.models.plugin import Plugin
 from app.plugins.base import PluginContext
 from app.plugins.events import start_listener
 from app.plugins.installer import load_plugin_class
-from app.plugins.manager import _mount_router, _register_celery_tasks, _serialize_character_submodules, _validate_plugin, set_app
+from app.plugins.manager import _mount_router, _publish_plugin_schedules, _register_celery_tasks, _serialize_character_submodules, _validate_plugin, set_app
+from app.tasks.plugin_schedules import serialize_plugin_beat_schedule
 from app.plugins.registry import extension_registry, registry
 
 if TYPE_CHECKING:
@@ -50,6 +51,8 @@ async def load_plugins(app: "FastAPI") -> None:
             registry.register(plugin_instance)
             _mount_router(plugin_instance)
             _register_celery_tasks(plugin_instance)
+            # Re-push Beat schedules so Beat self-heals even if Redis was flushed.
+            await _publish_plugin_schedules(plugin_instance)
 
             # 调用 on_enable 生命周期钩子
             ctx = PluginContext(db_session_factory=AsyncSessionLocal)
@@ -80,6 +83,7 @@ async def load_plugins(app: "FastAPI") -> None:
                         for s in plugin_instance.get_sidebar_items()
                     ])
                     new_meta["character_submodules"] = _serialize_character_submodules(plugin_instance, db_plugin.name)
+                    new_meta["beat_schedule"] = serialize_plugin_beat_schedule(plugin_instance)
                     upd.meta = new_meta
                     updated = True
                     logger.debug(

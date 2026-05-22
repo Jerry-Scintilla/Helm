@@ -13,6 +13,26 @@ const message = useMessage()
 const { t } = useI18n()
 const loading = ref(true)
 
+// Top-level view tab: installed | marketplace
+const viewTab = ref<'installed' | 'marketplace'>('installed')
+
+// Marketplace search
+const marketplaceQuery = ref('')
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+
+function onMarketplaceTabEnter() {
+  if (store.marketplacePlugins.length === 0) {
+    store.searchMarketplace('')
+  }
+}
+
+function onSearchInput() {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    store.searchMarketplace(marketplaceQuery.value)
+  }, 350)
+}
+
 // Install modal
 const showInstall = ref(false)
 const installTab = ref<'pypi' | 'whl'>('pypi')
@@ -40,6 +60,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   store.stopSSE()
+  if (searchTimer) clearTimeout(searchTimer)
 })
 
 watch(() => store.installing, async (cur, prev) => {
@@ -53,6 +74,13 @@ watch(() => store.installing, async (cur, prev) => {
     } else {
       message.error(t('admin.plugins.installFailed'))
     }
+  }
+})
+
+// After a successful install, re-fetch marketplace so the installed badge updates.
+watch(() => store.plugins, () => {
+  if (store.marketplacePlugins.length > 0) {
+    store.searchMarketplace(marketplaceQuery.value)
   }
 })
 
@@ -89,6 +117,27 @@ async function handleInstall() {
     } catch {
       message.error(t('admin.plugins.submitFailed'))
     }
+  }
+}
+
+async function installFromMarketplace(pkg: { package_name: string; source: 'pypi' | 'testpypi' }) {
+  packageName.value = pkg.package_name
+  showInstall.value = true
+  installTab.value = 'pypi'
+  try {
+    await store.installByName(pkg.package_name, pkg.source)
+  } catch {
+    message.error(t('admin.plugins.submitFailed'))
+  }
+}
+
+async function handleRefreshMarketplace() {
+  try {
+    await store.refreshMarketplace()
+    await store.searchMarketplace(marketplaceQuery.value)
+    message.success(t('admin.plugins.marketRefreshDone'))
+  } catch {
+    message.error(t('admin.plugins.marketRefreshFailed'))
   }
 }
 
@@ -166,43 +215,133 @@ function scrollLog() {
 
 <template>
   <div>
-    <!-- Header -->
-    <div class="section-header">
-      <span class="count-bar">{{ t('admin.plugins.count', { n: store.plugins.length }) }}</span>
-      <button class="btn-primary" @click="showInstall = true">{{ t('admin.plugins.install') }}</button>
+    <!-- View tab bar -->
+    <div class="view-tabs">
+      <button
+        :class="['view-tab', viewTab === 'installed' && 'active']"
+        @click="viewTab = 'installed'"
+      >{{ t('admin.plugins.tabInstalled') }}</button>
+      <button
+        :class="['view-tab', viewTab === 'marketplace' && 'active']"
+        @click="viewTab = 'marketplace'; onMarketplaceTabEnter()"
+      >{{ t('admin.plugins.tabMarketplace') }}</button>
+
+      <div class="view-tab-spacer" />
+
+      <button v-if="viewTab === 'installed'" class="btn-primary" @click="showInstall = true">
+        {{ t('admin.plugins.install') }}
+      </button>
     </div>
 
-    <div v-if="loading" class="helm-section-loader"><HelmLoader :size="48" /></div>
+    <!-- ── Installed tab ── -->
+    <template v-if="viewTab === 'installed'">
+      <div v-if="loading" class="helm-section-loader"><HelmLoader :size="48" /></div>
 
-    <!-- Plugin cards -->
-    <div v-if="!loading" class="plugin-grid">
-      <div v-if="store.plugins.length === 0" class="empty-hint">
-        {{ t('admin.plugins.empty') }}
-      </div>
-      <div v-for="p in store.plugins" :key="p.id" class="plugin-card">
-        <div class="plugin-top">
-          <div class="plugin-info">
-            <div class="plugin-name">{{ p.name }}</div>
-            <div class="plugin-meta">v{{ p.version }} · {{ p.author || t('admin.plugins.unknownAuthor') }}</div>
+      <div v-if="!loading" class="plugin-grid">
+        <div v-if="store.plugins.length === 0" class="empty-hint">
+          {{ t('admin.plugins.empty') }}
+        </div>
+        <div v-for="p in store.plugins" :key="p.id" class="plugin-card">
+          <div class="plugin-top">
+            <div class="plugin-info">
+              <div class="plugin-name">{{ p.name }}</div>
+              <div class="plugin-meta">v{{ p.version }} · {{ p.author || t('admin.plugins.unknownAuthor') }}</div>
+            </div>
+            <span class="status-tag" :style="{ color: statusColor(p.status), background: `${statusColor(p.status)}18` }">
+              {{ statusLabel(p.status) }}
+            </span>
           </div>
-          <span class="status-tag" :style="{ color: statusColor(p.status), background: `${statusColor(p.status)}18` }">
-            {{ statusLabel(p.status) }}
-          </span>
-        </div>
-        <div class="plugin-desc">{{ p.description || t('admin.plugins.noDesc') }}</div>
-        <div v-if="p.error_message" class="plugin-error">{{ p.error_message }}</div>
-        <div class="plugin-actions">
-          <button
-            v-if="p.status !== 'uninstalled'"
-            class="btn-sm"
-            @click="toggleEnable(p.name, p.is_enabled)"
-          >
-            {{ p.is_enabled ? t('common.disable') : t('common.enable') }}
-          </button>
-          <button class="btn-sm btn-danger" @click="openUninstall(p.name)">{{ t('admin.plugins.uninstall') }}</button>
+          <div class="plugin-desc">{{ p.description || t('admin.plugins.noDesc') }}</div>
+          <div v-if="p.error_message" class="plugin-error">{{ p.error_message }}</div>
+          <div class="plugin-actions">
+            <button
+              v-if="p.status !== 'uninstalled'"
+              class="btn-sm"
+              @click="toggleEnable(p.name, p.is_enabled)"
+            >
+              {{ p.is_enabled ? t('common.disable') : t('common.enable') }}
+            </button>
+            <button class="btn-sm btn-danger" @click="openUninstall(p.name)">{{ t('admin.plugins.uninstall') }}</button>
+          </div>
         </div>
       </div>
-    </div>
+    </template>
+
+    <!-- ── Marketplace tab ── -->
+    <template v-else>
+      <div class="market-search-bar">
+        <input
+          v-model="marketplaceQuery"
+          class="market-search-input"
+          :placeholder="t('admin.plugins.marketSearchPlaceholder')"
+          @input="onSearchInput"
+        />
+        <span v-if="store.marketplaceLoading" class="market-searching">
+          {{ t('admin.plugins.marketSearching') }}
+        </span>
+        <button
+          class="btn-sm market-refresh-btn"
+          :disabled="store.marketplaceRefreshing || store.marketplaceLoading"
+          @click="handleRefreshMarketplace"
+        >
+          {{ store.marketplaceRefreshing ? t('admin.plugins.marketRefreshing') : t('admin.plugins.marketRefresh') }}
+        </button>
+      </div>
+
+      <div v-if="store.marketplaceLoading && store.marketplacePlugins.length === 0" class="helm-section-loader">
+        <HelmLoader :size="48" />
+      </div>
+
+      <div v-else class="plugin-grid">
+        <div v-if="store.marketplacePlugins.length === 0 && !store.marketplaceLoading" class="empty-hint">
+          {{ t('admin.plugins.marketEmpty') }}
+        </div>
+        <div v-for="p in store.marketplacePlugins" :key="p.package_name" class="plugin-card">
+          <div class="plugin-top">
+            <div class="plugin-info">
+              <div class="plugin-name">
+                {{ p.display_name }}
+                <span v-if="p.verified" class="verified-badge">✓ {{ t('admin.plugins.verified') }}</span>
+                <span class="source-badge" :class="p.source === 'testpypi' ? 'source-test' : 'source-prod'">
+                  {{ p.source === 'testpypi' ? t('admin.plugins.sourceTestPypi') : t('admin.plugins.sourcePypi') }}
+                </span>
+              </div>
+              <div class="plugin-meta">
+                {{ p.package_name }}
+                <template v-if="p.version"> · v{{ p.version }}</template>
+                <template v-if="p.author"> · {{ p.author }}</template>
+              </div>
+            </div>
+            <span v-if="p.installed" class="status-tag installed-tag">
+              {{ t('admin.plugins.marketInstalled') }}
+            </span>
+          </div>
+
+          <div class="plugin-desc">{{ p.description || t('admin.plugins.noDesc') }}</div>
+
+          <div v-if="p.tags.length > 0" class="tag-list">
+            <span v-for="tag in p.tags" :key="tag" class="tag">{{ tag }}</span>
+          </div>
+
+          <div class="plugin-actions">
+            <a
+              v-if="p.homepage"
+              :href="p.homepage"
+              target="_blank"
+              rel="noopener"
+              class="btn-sm"
+            >{{ t('admin.plugins.marketHomepage') }}</a>
+            <button
+              class="btn-primary btn-sm-primary"
+              :disabled="p.installed || store.installing"
+              @click="installFromMarketplace(p)"
+            >
+              {{ p.installed ? t('admin.plugins.marketInstalled') : t('admin.plugins.marketInstall') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </template>
 
     <!-- Install modal -->
     <n-modal v-model:show="showInstall" preset="card" :title="t('admin.plugins.installModalTitle')" style="width:520px;max-width:95vw">
@@ -278,9 +417,120 @@ function scrollLog() {
 </template>
 
 <style scoped>
-.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-.count-bar { font-size: 0.85rem; color: #87867f; }
+/* View tab bar */
+.view-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-bottom: 1px solid #30302e;
+  margin-bottom: 16px;
+}
+.view-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 6px 18px;
+  font-size: 0.88rem;
+  color: #87867f;
+  cursor: pointer;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.view-tab:hover { color: #b0aea5; }
+.view-tab.active { color: #faf9f5; border-bottom-color: #c96442; }
+.view-tab-spacer { flex: 1; }
 
+/* Marketplace search */
+.market-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.market-search-input {
+  flex: 1;
+  max-width: 360px;
+  background: #1e1e1c;
+  border: 1px solid #30302e;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  color: #faf9f5;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.market-search-input::placeholder { color: #5e5d59; }
+.market-search-input:focus { border-color: #3898ec; }
+.market-searching { font-size: 0.78rem; color: #5e5d59; }
+
+/* Verified badge */
+.verified-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  background: rgba(106, 191, 105, 0.12);
+  color: #6abf69;
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* Installed badge in marketplace */
+.installed-tag {
+  color: #6abf69;
+  background: rgba(106, 191, 105, 0.1) !important;
+}
+
+/* Source registry badge */
+.source-badge {
+  display: inline-block;
+  font-size: 0.62rem;
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-left: 5px;
+  vertical-align: middle;
+  font-weight: 400;
+}
+.source-prod {
+  background: rgba(56, 152, 236, 0.12);
+  color: #3898ec;
+}
+.source-test {
+  background: rgba(201, 100, 66, 0.12);
+  color: #c96442;
+}
+
+/* Marketplace refresh button */
+.market-refresh-btn {
+  flex-shrink: 0;
+}
+.market-refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Tag chips */
+.tag-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.tag {
+  font-size: 0.68rem;
+  background: #30302e;
+  color: #87867f;
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+
+/* Small primary button variant (in cards) */
+.btn-sm-primary {
+  background: #c96442;
+  color: #faf9f5;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-sm-primary:hover { opacity: 0.88; }
+.btn-sm-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── Shared styles (unchanged from original) ── */
 .btn-primary {
   background: #c96442;
   color: #faf9f5;
@@ -330,7 +580,7 @@ function scrollLog() {
 .plugin-desc { font-size: 0.82rem; color: #87867f; line-height: 1.5; }
 .plugin-error { font-size: 0.78rem; color: #b53333; background: rgba(181,51,51,0.1); padding: 6px 10px; border-radius: 4px; }
 
-.plugin-actions { display: flex; gap: 8px; margin-top: 4px; }
+.plugin-actions { display: flex; gap: 8px; margin-top: 4px; align-items: center; }
 .btn-sm {
   background: #30302e;
   color: #b0aea5;
@@ -340,6 +590,8 @@ function scrollLog() {
   font-size: 0.78rem;
   cursor: pointer;
   transition: background 0.15s;
+  text-decoration: none;
+  display: inline-block;
 }
 .btn-sm:hover { background: #3d3d3a; }
 .btn-danger { color: #b53333; }

@@ -196,13 +196,17 @@ def _make_context() -> PluginContext:
 
 # ── Install ───────────────────────────────────────────────────────────────────
 
-async def install_plugin(package_name: str, whl_path: Path | None = None) -> dict:
+async def install_plugin(
+    package_name: str,
+    whl_path: Path | None = None,
+    source: str = "pypi",
+) -> dict:
     """
     Full installation flow. Designed to run inside a BackgroundTask.
     Creates its own DB session (caller's session is already closed by then).
     """
     install_target = str(whl_path) if whl_path else package_name
-    logger.info("[install:%s] ── START install_target=%s", package_name, install_target)
+    logger.info("[install:%s] ── START install_target=%s source=%s", package_name, install_target, source)
 
     await publish_event("plugin.installing", {"package_name": package_name})
 
@@ -221,7 +225,9 @@ async def install_plugin(package_name: str, whl_path: Path | None = None) -> dic
         )
 
     logger.info("[install:%s] step 1/11 — pip install", package_name)
-    ok, output = await pip_install(install_target, on_line=on_line)
+    # whl_path installs are always local file, source flag applies only to name installs
+    pip_source = "pypi" if whl_path else source
+    ok, output = await pip_install(install_target, on_line=on_line, source=pip_source)
     if not ok:
         logger.error("[install:%s] pip install FAILED:\n%s", package_name, output)
         await publish_event("plugin.install.failed", {"package_name": package_name, "error": output})

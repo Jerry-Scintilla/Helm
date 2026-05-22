@@ -221,7 +221,6 @@
       "colActions": "Actions",
       "colScheduleName": "Schedule Name",
       "colTask": "Task",
-      "colQueue": "Queue",
       "colPeriod": "Period",
       "colLastStatus": "Last Status",
       "colLastComplete": "Last Completed",
@@ -327,7 +326,22 @@
       "reloginRequired": "Re-login Required",
       "reloginDesc": "Plugin {name} requires the following new ESI permissions that your current token does not include. Please re-login to Helm to grant them:",
       "reloginNow": "Re-login Now",
-      "reloginLater": "Later"
+      "reloginLater": "Later",
+      "tabInstalled": "Installed",
+      "tabMarketplace": "Marketplace",
+      "marketSearchPlaceholder": "Search by name, description or tag…",
+      "marketSearching": "Searching…",
+      "marketEmpty": "No plugins found",
+      "marketInstall": "Install",
+      "marketInstalled": "Installed",
+      "marketHomepage": "Homepage",
+      "verified": "Verified",
+      "marketRefresh": "Sync",
+      "marketRefreshing": "Syncing…",
+      "marketRefreshDone": "Marketplace index refreshed",
+      "marketRefreshFailed": "Refresh failed",
+      "sourcePypi": "PyPI",
+      "sourceTestPypi": "Test"
     }
   },
   "char": {

@@ -33,14 +33,27 @@ _BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 
 # ── pip wrappers ─────────────────────────────────────────────────────────────
 
+_TESTPYPI_INDEX = "https://test.pypi.org/simple/"
+_PYPI_EXTRA_INDEX = "https://pypi.org/simple/"
+
+
 async def pip_install(
     package: str,
     on_line: Callable[[str], None] | None = None,
+    source: str = "pypi",
 ) -> tuple[bool, str]:
-    """Run `pip install <package>`, streaming stdout line-by-line via on_line callback."""
+    """Run `pip install <package>`, streaming stdout line-by-line via on_line callback.
+
+    When source is 'testpypi', installs from Test PyPI with PyPI as fallback for
+    dependencies that are not available on Test PyPI.
+    """
     def _run() -> tuple[bool, str]:
+        cmd = [sys.executable, "-m", "pip", "install", "--no-input", "--disable-pip-version-check"]
+        if source == "testpypi":
+            cmd += ["--index-url", _TESTPYPI_INDEX, "--extra-index-url", _PYPI_EXTRA_INDEX]
+        cmd.append(package)
         proc = subprocess.Popen(
-            [sys.executable, "-m", "pip", "install", "--no-input", "--disable-pip-version-check", package],
+            cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )

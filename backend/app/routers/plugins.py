@@ -20,7 +20,8 @@ from app.plugins import events
 from app.plugins.base import HelmPlugin
 from app.plugins.manager import disable_plugin, enable_plugin, install_plugin, uninstall_plugin
 from app.plugins.registry import extension_registry, registry
-from app.schemas.plugin import InstallRequest, InstallResponse, PluginInfo, PluginStatusResponse
+from app.plugins.marketplace import get_marketplace_index, refresh_cache
+from app.schemas.plugin import InstallRequest, InstallResponse, MarketplacePlugin, MarketplaceRefreshResponse, PluginInfo, PluginStatusResponse
 
 
 logger = logging.getLogger(__name__)
@@ -52,7 +53,7 @@ def _spawn_uninstall(name: str) -> None:
     task.add_done_callback(_done)
 
 
-def _spawn_install(package_name: str, whl_path=None) -> None:
+def _spawn_install(package_name: str, whl_path=None, source: str = "pypi") -> None:
     """Fire-and-forget the install coroutine, fully detached from the request.
 
     Using BackgroundTasks here was the original pattern but it keeps the
@@ -60,7 +61,10 @@ def _spawn_install(package_name: str, whl_path=None) -> None:
     background task completes — which pins a DB connection from the pool for
     the entire duration of pip + migrations.
     """
-    coro = install_plugin(package_name, whl_path) if whl_path is not None else install_plugin(package_name)
+    if whl_path is not None:
+        coro = install_plugin(package_name, whl_path)
+    else:
+        coro = install_plugin(package_name, source=source)
     task = asyncio.create_task(coro, name=f"install-{package_name}")
     _install_tasks.add(task)
 
@@ -173,13 +177,22 @@ async def plugin_events(token: Annotated[str, Query()]):
     )
 
 
+@router.post("/marketplace/refresh", response_model=MarketplaceRefreshResponse)
+async def refresh_marketplace(
+    _: User = Depends(require_permission("global.plugin_manage")),
+):
+    """Force-rebuild the marketplace index, bypassing the cache TTL."""
+    count = await refresh_cache()
+    return MarketplaceRefreshResponse(count=count)
+
+
 @router.post("/install", response_model=InstallResponse)
 async def install_by_name(
     req: InstallRequest,
     _: User = Depends(require_permission("global.plugin_manage")),
 ):
     task_id = str(uuid.uuid4())
-    _spawn_install(req.package_name)
+    _spawn_install(req.package_name, source=req.source)
     return InstallResponse(task_id=task_id, status="installing")
 
 
@@ -201,6 +214,27 @@ async def install_by_upload(
     task_id = str(uuid.uuid4())
     _spawn_install(package_name, whl_path)
     return InstallResponse(task_id=task_id, status="installing")
+
+
+@router.get("/marketplace/search", response_model=list[MarketplacePlugin])
+async def search_marketplace(
+    q: str = "",
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("global.plugin_manage")),
+):
+    result = await db.execute(select(Plugin))
+    installed = {p.package_name for p in result.scalars().all()}
+    plugins = await get_marketplace_index(installed)
+    if q:
+        q_lower = q.lower()
+        plugins = [
+            p for p in plugins
+            if q_lower in p.package_name.lower()
+            or q_lower in p.display_name.lower()
+            or q_lower in p.description.lower()
+            or any(q_lower in tag for tag in p.tags)
+        ]
+    return plugins
 
 
 @router.post("/{name}/enable", status_code=204)

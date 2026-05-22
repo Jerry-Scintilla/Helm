@@ -29,6 +29,7 @@ celery_app = Celery(
         "app.tasks.bucket.backfill",
         "app.tasks.esi_cache.refresh",
         "app.tasks.maintenance",
+        "app.tasks.marketplace",
     ],
 )
 
@@ -88,6 +89,11 @@ celery_app.conf.update(
         "cleanup-old-task-runs": {
             "task": "app.tasks.maintenance.cleanup_task_runs",
             "schedule": 86400.0,
+        },
+        # Marketplace index refresh — every 6 hours
+        "refresh-marketplace-index": {
+            "task": "app.tasks.marketplace.refresh_marketplace_index",
+            "schedule": 21600.0,
         },
     },
 )

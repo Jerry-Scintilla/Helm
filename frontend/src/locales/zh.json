@@ -221,7 +221,6 @@
       "colActions": "操作",
       "colScheduleName": "计划名",
       "colTask": "任务",
-      "colQueue": "队列",
       "colPeriod": "周期",
       "colLastStatus": "上次状态",
       "colLastComplete": "上次完成",
@@ -327,7 +326,22 @@
       "reloginRequired": "需要重新登录",
       "reloginDesc": "插件 {name} 需要以下新的 ESI 授权，您当前的 token 中不包含这些权限。请重新登录 Helm 以完整授权：",
       "reloginNow": "立即重新登录",
-      "reloginLater": "稍后再说"
+      "reloginLater": "稍后再说",
+      "tabInstalled": "已安装",
+      "tabMarketplace": "插件市场",
+      "marketSearchPlaceholder": "搜索插件名称、描述或标签…",
+      "marketSearching": "搜索中…",
+      "marketEmpty": "未找到匹配的插件",
+      "marketInstall": "安装",
+      "marketInstalled": "已安装",
+      "marketHomepage": "主页",
+      "verified": "已认证",
+      "marketRefresh": "同步",
+      "marketRefreshing": "同步中…",
+      "marketRefreshDone": "插件市场索引已刷新",
+      "marketRefreshFailed": "刷新失败",
+      "sourcePypi": "PyPI",
+      "sourceTestPypi": "测试版"
     }
   },
   "char": {

@@ -33,5 +33,7 @@ class Settings(BaseSettings):
     market_default_region_id: int = 10000002  # The Forge (Jita)
     market_price_ttl: int = 3600              # seconds
 
+    marketplace_index_url: str = "https://raw.githubusercontent.com/Jerry-Scintilla/helm-plugin-index/master/index.json"
+
 
 settings = Settings()

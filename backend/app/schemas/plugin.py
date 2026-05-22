@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -25,6 +26,7 @@ class PluginInfo(BaseModel):
 
 class InstallRequest(BaseModel):
     package_name: str
+    source: Literal["pypi", "testpypi"] = "pypi"
 
 
 class InstallResponse(BaseModel):
@@ -39,3 +41,20 @@ class PluginStatusResponse(BaseModel):
     is_loaded: bool
     router_mounted: bool
     error_message: str | None
+
+
+class MarketplacePlugin(BaseModel):
+    package_name: str
+    display_name: str
+    description: str
+    author: str
+    version: str | None
+    tags: list[str]
+    verified: bool
+    homepage: str | None
+    installed: bool
+    source: Literal["pypi", "testpypi"] = "pypi"
+
+
+class MarketplaceRefreshResponse(BaseModel):
+    count: int

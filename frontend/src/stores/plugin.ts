@@ -35,6 +35,19 @@ export interface PluginInfo {
   updated_at: string
 }
 
+export interface MarketplacePlugin {
+  package_name: string
+  display_name: string
+  description: string
+  author: string
+  version: string | null
+  tags: string[]
+  verified: boolean
+  homepage: string | null
+  installed: boolean
+  source: 'pypi' | 'testpypi'
+}
+
 export const usePluginStore = defineStore('plugin', () => {
   const plugins = ref<PluginInfo[]>([])
   const installLog = ref<string[]>([])
@@ -42,6 +55,9 @@ export const usePluginStore = defineStore('plugin', () => {
   const installSucceeded = ref(false)
   const uninstallInProgress = ref(false)
   const lastInstalledPlugin = ref<string | null>(null)
+  const marketplacePlugins = ref<MarketplacePlugin[]>([])
+  const marketplaceLoading = ref(false)
+  const marketplaceRefreshing = ref(false)
   // Tracks a cache-bust token (Unix ms timestamp) per plugin name.
   // Appended as ?_v=<token> to iframe src to force reload after status change.
   const pluginCacheTokens = ref<Record<string, number>>({})
@@ -67,8 +83,29 @@ export const usePluginStore = defineStore('plugin', () => {
     plugins.value = Array.from(existing.values())
   }
 
-  async function installByName(packageName: string) {
-    await api.post('/api/v1/admin/plugins/install', { package_name: packageName })
+  async function searchMarketplace(q: string) {
+    marketplaceLoading.value = true
+    try {
+      const res = await api.get<MarketplacePlugin[]>(
+        `/api/v1/admin/plugins/marketplace/search?q=${encodeURIComponent(q)}`,
+      )
+      marketplacePlugins.value = res.data
+    } finally {
+      marketplaceLoading.value = false
+    }
+  }
+
+  async function refreshMarketplace() {
+    marketplaceRefreshing.value = true
+    try {
+      await api.post('/api/v1/admin/plugins/marketplace/refresh')
+    } finally {
+      marketplaceRefreshing.value = false
+    }
+  }
+
+  async function installByName(packageName: string, source: 'pypi' | 'testpypi' = 'pypi') {
+    await api.post('/api/v1/admin/plugins/install', { package_name: packageName, source })
   }
 
   async function installByWhl(file: File) {
@@ -158,8 +195,13 @@ export const usePluginStore = defineStore('plugin', () => {
     uninstallInProgress,
     lastInstalledPlugin,
     pluginCacheTokens,
+    marketplacePlugins,
+    marketplaceLoading,
+    marketplaceRefreshing,
     fetchPlugins,
     fetchEnabledPlugins,
+    searchMarketplace,
+    refreshMarketplace,
     installByName,
     installByWhl,
     enablePlugin,

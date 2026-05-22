@@ -67,7 +67,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function bindCharacter(): Promise<string> {
-    const { data } = await api.get('/auth/eve/bind')
+    const { data } = await api.get('/api/v1/auth/eve/bind')
     return data.redirect_url
   }
 
@@ -75,7 +75,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (refreshToken.value) {
       try {
         const base = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
-        await axios.post(`${base}/auth/logout`, { refresh_token: refreshToken.value })
+        await axios.post(`${base}/api/v1/auth/logout`, { refresh_token: refreshToken.value })
       } catch {}
     }
     accessToken.value = null
@@ -101,7 +101,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   function loginWithEve() {
     const base = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
-    window.location.href = `${base}/auth/eve/login`
+    window.location.href = `${base}/api/v1/auth/eve/login`
   }
 
   return {

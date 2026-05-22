@@ -1,0 +1,34 @@
+# Python runtime artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+
+# Virtual environment (依赖在 Docker 内重新安装)
+.venv/
+
+# Local dev & secrets
+.env
+.env.*
+!.env.example
+
+# Celery beat schedule state
+celerybeat-schedule.*
+
+# Local data & test output
+data/
+tests/
+
+# Dev scripts
+scripts/
+
+# Docs
+README.md
+
+# Editor / OS
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db

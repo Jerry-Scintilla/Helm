@@ -19,7 +19,7 @@
 
 ## Documentation
 
-Please refer to the [documentation](https://jerry-scintilla.github.io/Helm-screenshot/) for installation instructions, architecture details, and the plugin development guide.
+Please refer to the [documentation](https://jerry-scintilla.github.io/Helm-docs/) for installation instructions, architecture details, and the plugin development guide.
 
 ## Tech Stack
 
@@ -34,11 +34,7 @@ Please refer to the [documentation](https://jerry-scintilla.github.io/Helm-scree
 
 ## Plugins
 
-| Plugin | Description |
-|--------|-------------|
-| [fleet-action](https://github.com/Jerry-Scintilla/helm-plugin-fleet-action) | Fleet PAP attendance tracking with manual record issuance |
-| [SRP](https://github.com/Jerry-Scintilla/helm-plugin-SRP) | Ship Replacement Program with killmail parsing, officer review, and pricing config |
-| [helm-mcp](https://github.com/Jerry-Scintilla/helm-plugin-MCP) | Model Context Protocol server — exposes Helm data to LLMs |
+Browse and install plugins from the **[Plugin Marketplace](https://jerry-scintilla.github.io/Helm-docs/admin-guide/plugin-marketplace/)** — the index is community-maintained and updates in real time.
 
 ## Quick Start
 
@@ -67,7 +63,7 @@ Register your EVE application at [developers.eveonline.com](https://developers.e
 
 Helm plugins are standard Python packages that subclass `HelmPlugin`. They can contribute API routes, SQLAlchemy models, Celery tasks, RBAC permissions, sidebar items, and a compiled Vue frontend.
 
-See the [Plugin Development Guide](Markdown/Plugin_Dev_Guide/) to get started.
+See the [Plugin Development Guide](https://jerry-scintilla.github.io/Helm-docs/plugin-dev/) to get started.
 
 ## Contributing
 

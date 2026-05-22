@@ -23,7 +23,7 @@ from app.models.plugin import Plugin
 from app.models.user import RefreshToken, User
 from app.tasks.celery_app import celery_app
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 _OAUTH_STATE_TTL = 600  # 10 minutes
 

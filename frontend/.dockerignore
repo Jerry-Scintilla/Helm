@@ -1,0 +1,23 @@
+# Dependencies (Docker 内重新安装)
+node_modules/
+
+# Previous build output
+dist/
+
+# Lock file (跨平台原生绑定问题，Docker 内做全新 install)
+pnpm-lock.yaml
+package-lock.json
+
+# Local env & tunnel config
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+
+# Docs
+README.md

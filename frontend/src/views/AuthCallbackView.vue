@@ -21,7 +21,7 @@ onMounted(async () => {
   }
 
   try {
-    const { data } = await api.get('/auth/eve/callback', { params: { code, state } })
+    const { data } = await api.get('/api/v1/auth/eve/callback', { params: { code, state } })
 
     if (data.type === 'bind') {
       bindSuccess.value = `角色 ${data.character_name} 已成功绑定`

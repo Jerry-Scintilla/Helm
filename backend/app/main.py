@@ -43,9 +43,30 @@ from app.routers.market import router as market_router
 from app.routers.admin_market import router as admin_market_router
 from app.routers.plugins import public_router as plugins_public_router, router as plugins_router
 from app.routers.plugin_ui import router as plugin_ui_router
+from app.routers.setup import router as setup_router
 from app.plugins.loader import load_plugins
 from app.plugins.events import stop_listener
 
+
+
+async def _maybe_print_setup_link() -> None:
+    """On first boot (no superuser yet), generate and log a one-time admin setup URL."""
+    from app.core.setup_token import generate_setup_token, has_any_superuser
+    async with AsyncSessionLocal() as db:
+        if await has_any_superuser(db):
+            return
+    token = await generate_setup_token()
+    url = f"{settings.app_url}/setup/superuser/{token}"
+    banner = "=" * 70
+    logger.warning(banner)
+    logger.warning("HELM SETUP: No superuser found.")
+    logger.warning("Log in via EVE SSO, then open the following URL in your browser:")
+    logger.warning("")
+    logger.warning("  %s", url)
+    logger.warning("")
+    logger.warning("This link is single-use and expires in 24 hours.")
+    logger.warning("To regenerate: docker exec helm-backend-1 /app/.venv/bin/python -m cli admin setup-link")
+    logger.warning(banner)
 
 
 async def _ensure_default_bucket() -> None:
@@ -69,6 +90,7 @@ async def lifespan(app: FastAPI):
     async with AsyncSessionLocal() as db:
         await seed_permissions(db)
     await _ensure_default_bucket()
+    await _maybe_print_setup_link()
     # 预热 Redis 连接池，避免首次请求时建立连接的延迟
     from app.core.redis import get_pool
     import redis.asyncio as aioredis
@@ -137,6 +159,7 @@ app.include_router(admin_market_router)
 app.include_router(plugins_public_router)
 app.include_router(plugins_router)
 app.include_router(plugin_ui_router, prefix="/plugin-ui")
+app.include_router(setup_router)
 
 # Serve helm-sdk.js for plugin iframes: GET /plugin-sdk/helm-sdk.js
 _sdk_dir = Path(__file__).parent / "static"

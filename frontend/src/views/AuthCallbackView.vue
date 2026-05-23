@@ -28,7 +28,13 @@ onMounted(async () => {
       setTimeout(() => router.replace('/dashboard'), 1500)
     } else {
       auth.setTokens(data)
-      router.replace('/dashboard')
+      const pending = sessionStorage.getItem('helm:pending-redirect')
+      if (pending) {
+        sessionStorage.removeItem('helm:pending-redirect')
+        router.replace(pending)
+      } else {
+        router.replace('/dashboard')
+      }
     }
   } catch (e: any) {
     error.value = e?.response?.data?.detail ?? '登录失败，请重试'

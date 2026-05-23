@@ -20,6 +20,12 @@ const router = createRouter({
       meta: { public: true },
     },
     {
+      path: '/setup/superuser/:token',
+      name: 'setup-superuser',
+      component: () => import('@/views/SetupSuperuserView.vue'),
+      meta: { public: true },
+    },
+    {
       // Persistent shell — all authenticated views live inside here
       path: '/',
       name: 'main',

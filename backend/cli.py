@@ -14,9 +14,11 @@ from rich.table import Table
 app = typer.Typer(name="helm", help="Helm management commands")
 bucket_app = typer.Typer(help="Bucket management")
 sde_app = typer.Typer(help="EVE Static Data Export management")
+admin_app = typer.Typer(help="Admin management")
 
 app.add_typer(bucket_app, name="bucket")
 app.add_typer(sde_app, name="sde")
+app.add_typer(admin_app, name="admin")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -216,6 +218,25 @@ def sde_import(
         print(f"\n[green]SDE import complete: {total} type records.[/green]")
 
     _run(_import())
+
+
+# ── Admin commands ────────────────────────────────────────────────────────────
+
+@admin_app.command("setup-link")
+def admin_setup_link():
+    """Generate a new one-time superuser setup link and print it."""
+    async def _generate():
+        from app.core.config import settings
+        from app.core.setup_token import generate_setup_token
+
+        # Initialise Redis pool (requires settings to be loaded)
+        token = await generate_setup_token()
+        url = f"{settings.app_url}/setup/superuser/{token}"
+        print("[bold green]Superuser setup link generated (single-use, 24h TTL):[/bold green]")
+        print(f"\n  [cyan]{url}[/cyan]\n")
+        print("[dim]Log in via EVE SSO first, then open the link in your browser.[/dim]")
+
+    _run(_generate())
 
 
 if __name__ == "__main__":

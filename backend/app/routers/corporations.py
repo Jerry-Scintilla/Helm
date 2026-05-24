@@ -7,6 +7,7 @@ from app.core.permissions import require_permission
 from app.models.character import Character
 from app.models.corporation import Corporation, CorporationAsset, CorporationMember, CorporationWallet, CorporationWalletJournal
 from app.models.user import User
+from app.services.esi_names import resolve_entity_names
 from app.services.sde import enrich_type_icons, enrich_type_names_all_locales
 from app.tasks.utils import DIRECTOR_SCOPE
 
@@ -65,13 +66,19 @@ async def get_corporation(
     if corp is None:
         raise HTTPException(status_code=404, detail="Corporation not found")
 
+    name_map = await resolve_entity_names([corp.ceo_id, corp.alliance_id])
+    ceo_name = name_map.get(corp.ceo_id, {}).get("name") if corp.ceo_id else None
+    alliance_name = name_map.get(corp.alliance_id, {}).get("name") if corp.alliance_id else None
+
     return {
         "corporation_id": corp.corporation_id,
         "name": corp.name,
         "ticker": corp.ticker,
         "member_count": corp.member_count,
         "ceo_id": corp.ceo_id,
+        "ceo_name": ceo_name,
         "alliance_id": corp.alliance_id,
+        "alliance_name": alliance_name,
         "description": corp.description,
         "updated_at": corp.updated_at,
     }

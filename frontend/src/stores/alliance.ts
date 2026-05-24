@@ -2,14 +2,21 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import api from '@/api'
 
+export interface AllianceMemberCorp {
+  corporation_id: number
+  name: string | null
+}
+
 export interface AllianceInfo {
   alliance_id: number
   name: string
   ticker: string
   creator_corp_id: number | null
+  creator_corp_name: string | null
   executor_corp_id: number | null
+  executor_corp_name: string | null
   updated_at: string | null
-  member_corporations: number[]
+  member_corporations: AllianceMemberCorp[]
 }
 
 export const useAllianceStore = defineStore('alliance', () => {

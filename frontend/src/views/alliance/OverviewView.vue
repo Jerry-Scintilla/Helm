@@ -44,11 +44,13 @@ function fmtDate(dt: string | null) {
         </div>
         <div class="info-card">
           <div class="info-label">{{ t('alliance.executorCorp') }}</div>
-          <div class="info-value">{{ allianceStore.allianceInfo.executor_corp_id ?? '—' }}</div>
+          <div class="info-value">{{ allianceStore.allianceInfo.executor_corp_name ?? allianceStore.allianceInfo.executor_corp_id ?? '—' }}</div>
+          <div v-if="allianceStore.allianceInfo.executor_corp_name && allianceStore.allianceInfo.executor_corp_id" class="info-sub">#{{ allianceStore.allianceInfo.executor_corp_id }}</div>
         </div>
         <div class="info-card">
           <div class="info-label">{{ t('alliance.creatorCorp') }}</div>
-          <div class="info-value">{{ allianceStore.allianceInfo.creator_corp_id ?? '—' }}</div>
+          <div class="info-value">{{ allianceStore.allianceInfo.creator_corp_name ?? allianceStore.allianceInfo.creator_corp_id ?? '—' }}</div>
+          <div v-if="allianceStore.allianceInfo.creator_corp_name && allianceStore.allianceInfo.creator_corp_id" class="info-sub">#{{ allianceStore.allianceInfo.creator_corp_id }}</div>
         </div>
       </div>
 
@@ -56,11 +58,12 @@ function fmtDate(dt: string | null) {
         <div class="section-label">{{ t('alliance.memberList', { n: allianceStore.allianceInfo.member_corporations.length }) }}</div>
         <div class="corp-grid">
           <div
-            v-for="corpId in allianceStore.allianceInfo.member_corporations"
-            :key="corpId"
+            v-for="corp in allianceStore.allianceInfo.member_corporations"
+            :key="corp.corporation_id"
             class="corp-chip"
+            :title="String(corp.corporation_id)"
           >
-            {{ corpId }}
+            {{ corp.name ?? corp.corporation_id }}
           </div>
         </div>
       </section>
@@ -79,6 +82,7 @@ function fmtDate(dt: string | null) {
 .info-card { background: #1e1e1c; border: 1px solid #30302e; border-radius: 8px; padding: 16px 18px; }
 .info-label { font-size: 0.78rem; color: #87867f; margin-bottom: 6px; }
 .info-value { font-size: 1.1rem; font-weight: 500; color: #faf9f5; }
+.info-sub { font-size: 0.72rem; color: #5e5d59; margin-top: 4px; font-variant-numeric: tabular-nums; }
 
 .section-label { font-size: 0.82rem; color: #87867f; margin-bottom: 10px; }
 .corp-grid { display: flex; flex-wrap: wrap; gap: 6px; }

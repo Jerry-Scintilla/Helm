@@ -689,6 +689,7 @@
   "corp": {
     "memberCount": "Members",
     "allianceId": "Alliance ID",
+    "alliance": "Alliance",
     "description": "Description",
     "updatedAt": "Updated At",
     "searchMember": "Search Character ID",

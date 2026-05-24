@@ -689,6 +689,7 @@
   "corp": {
     "memberCount": "成员数",
     "allianceId": "联盟 ID",
+    "alliance": "联盟",
     "description": "公司简介",
     "updatedAt": "数据更新于",
     "searchMember": "搜索 Character ID",

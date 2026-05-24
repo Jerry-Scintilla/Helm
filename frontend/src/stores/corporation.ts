@@ -9,7 +9,9 @@ export interface CorporationInfo {
   ticker: string
   member_count: number
   ceo_id: number | null
+  ceo_name: string | null
   alliance_id: number | null
+  alliance_name: string | null
   description: string
   updated_at: string | null
 }

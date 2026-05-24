@@ -18,9 +18,10 @@ function icon(emoji: string) {
   return () => h('span', { style: 'font-size:14px;line-height:1;opacity:0.7' }, emoji)
 }
 
-const charId = computed(() =>
-  route.params.id ? String(route.params.id) : (auth.characterId ? String(auth.characterId) : null)
-)
+const charId = computed(() => {
+  if (route.path.startsWith('/character/') && route.params.id) return String(route.params.id)
+  return auth.characterId ? String(auth.characterId) : null
+})
 const corpId = computed(() => {
   if (route.path.startsWith('/corporation/')) return String(route.params.id)
   return auth.primaryCorporationId ? String(auth.primaryCorporationId) : null

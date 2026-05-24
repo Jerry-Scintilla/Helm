@@ -8,11 +8,20 @@ export interface CharacterSubmoduleMeta {
   icon: string
   order: number
   iframe_url_template: string
+  required_permission?: string | null
+}
+
+export interface SidebarItemMeta {
+  label: string
+  route: string
+  icon: string
+  order: number
+  required_permission?: string | null
 }
 
 export interface PluginMeta {
   esi_scopes: string[]
-  sidebar_items: Array<{ label: string; route: string; icon: string; order: number }>
+  sidebar_items: SidebarItemMeta[]
   widgets: Array<{ component: string; title: string; order: number }>
   character_submodules: CharacterSubmoduleMeta[]
 }

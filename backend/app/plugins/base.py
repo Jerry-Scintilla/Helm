@@ -22,6 +22,7 @@ class SidebarItem:
     route: str
     icon: str = ""
     order: int = 100
+    required_permission: str | None = None  # 若设置，仅拥有该权限的用户可见
 
 
 @dataclass
@@ -89,6 +90,7 @@ class CharacterSubmodule:
     iframe_url_template: str    # 含 {character_id} 占位符的 iframe URL
     icon: str = ""              # 可选 emoji 图标
     order: int = 100            # 在角色菜单中的排列顺序
+    required_permission: str | None = None  # 若设置，仅拥有该权限的用户可见
 
 
 @runtime_checkable

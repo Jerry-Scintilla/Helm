@@ -123,6 +123,17 @@ async def seed_permissions(db: AsyncSession) -> None:
     await db.commit()
 
 
+async def get_user_permissions(user_id: int, db: AsyncSession) -> set[str]:
+    """返回用户拥有的所有权限名集合。超级用户返回空集合（调用方应单独判断 is_superuser）。"""
+    result = await db.execute(
+        select(Permission.name)
+        .join(RolePermission, RolePermission.permission_id == Permission.id)
+        .join(UserRole, UserRole.role_id == RolePermission.role_id)
+        .where(UserRole.user_id == user_id)
+    )
+    return {row[0] for row in result.fetchall()}
+
+
 async def assign_player_role(user_id: int, db: AsyncSession) -> None:
     """Assign the default player role to a newly registered user."""
     result = await db.execute(select(Role).where(Role.name == PLAYER_ROLE_NAME))

@@ -63,8 +63,22 @@ def _serialize_character_submodules(plugin_instance: HelmPlugin, plugin_name: st
             "icon": m.icon,
             "order": m.order,
             "iframe_url_template": m.iframe_url_template,
+            "required_permission": m.required_permission,
         })
     return result
+
+
+def _serialize_sidebar_items(plugin_instance: HelmPlugin) -> list[dict]:
+    return [
+        {
+            "label": s.label,
+            "route": s.route,
+            "icon": s.icon,
+            "order": s.order,
+            "required_permission": s.required_permission,
+        }
+        for s in plugin_instance.get_sidebar_items()
+    ]
 
 
 def set_app(app: "FastAPI") -> None:
@@ -303,10 +317,7 @@ async def install_plugin(
 
         meta_snapshot = {
             "esi_scopes": plugin_instance.get_esi_scopes(),
-            "sidebar_items": [
-                {"label": s.label, "route": s.route, "icon": s.icon, "order": s.order}
-                for s in plugin_instance.get_sidebar_items()
-            ],
+            "sidebar_items": _serialize_sidebar_items(plugin_instance),
             "character_submodules": _serialize_character_submodules(plugin_instance, plugin_class.name),
             "beat_schedule": serialize_plugin_beat_schedule(plugin_instance),
         }
@@ -416,10 +427,7 @@ async def enable_plugin(name: str) -> None:
         db_plugin.updated_at = datetime.now(UTC)
         db_plugin.meta = {
             "esi_scopes": plugin_instance.get_esi_scopes(),
-            "sidebar_items": [
-                {"label": s.label, "route": s.route, "icon": s.icon, "order": s.order}
-                for s in plugin_instance.get_sidebar_items()
-            ],
+            "sidebar_items": _serialize_sidebar_items(plugin_instance),
             "character_submodules": _serialize_character_submodules(plugin_instance, name),
             "beat_schedule": serialize_plugin_beat_schedule(plugin_instance),
         }

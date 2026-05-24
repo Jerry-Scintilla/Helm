@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, get_db
-from app.core.permissions import get_current_user, require_permission
+from app.core.permissions import get_current_user, get_user_permissions, require_permission
 from app.core.security import decode_access_token
 from app.models.plugin import Plugin
 from app.models.user import User
@@ -290,15 +290,42 @@ async def plugin_status(
 # ── Public endpoints ──────────────────────────────────────────────────────────
 
 @public_router.get("/", response_model=list[PluginInfo])
-async def list_enabled_plugins(db: AsyncSession = Depends(get_db)):
-    """Public endpoint: returns enabled plugin manifest for frontend dynamic routing."""
+async def list_enabled_plugins(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """已登录用户的插件清单：sidebar_items / character_submodules 会按用户权限裁剪。
+
+    每个条目可在 meta 中声明 required_permission；若用户缺少该权限，则该条
+    在返回前被剔除（超级用户和拥有 global.superuser 的用户绕过过滤）。
+    """
     result = await db.execute(
         select(Plugin).where(Plugin.is_enabled == True, Plugin.status == "enabled")
     )
     plugins = result.scalars().all()
+
+    if current_user.is_superuser:
+        bypass = True
+        user_perms: set[str] = set()
+    else:
+        user_perms = await get_user_permissions(current_user.id, db)
+        bypass = "global.superuser" in user_perms
+
+    def _allowed(item: dict) -> bool:
+        req = item.get("required_permission")
+        if not req or bypass:
+            return True
+        return req in user_perms
+
     infos = []
     for p in plugins:
         info = PluginInfo.model_validate(p)
+        meta = dict(info.meta or {})
+        meta["sidebar_items"] = [s for s in meta.get("sidebar_items", []) if _allowed(s)]
+        meta["character_submodules"] = [
+            s for s in meta.get("character_submodules", []) if _allowed(s)
+        ]
+        info = info.model_copy(update={"meta": meta})
         instance = registry.get(p.name)
         if instance:
             info = info.model_copy(update={"frontend_url": _compute_frontend_url(instance, p.name)})

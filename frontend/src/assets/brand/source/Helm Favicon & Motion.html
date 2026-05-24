@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Helm — Favicon &amp; Motion</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; padding:0; background:#f0eee9; }
+  :root {
+    --parchment: #f5f4ed;
+    --ivory: #faf9f5;
+    --terracotta: #c96442;
+    --coral: #d97757;
+    --near-black: #141413;
+    --dark-surface: #30302e;
+    --charcoal: #4d4c48;
+    --olive: #5e5d59;
+    --stone: #87867f;
+    --warm-silver: #b0aea5;
+    --border-cream: #f0eee6;
+    --border-warm: #e8e6dc;
+    --serif: 'Instrument Serif', Georgia, serif;
+    --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  }
+
+  /* ───────── Cards ───────── */
+  .card {
+    width: 100%; height: 100%;
+    background: var(--parchment);
+    display: flex; flex-direction: column;
+    color: var(--near-black);
+    font-family: var(--sans);
+    overflow: hidden;
+  }
+  .card .head {
+    padding: 18px 22px 14px;
+    border-bottom: 1px solid var(--border-cream);
+    display: flex; align-items: baseline; gap: 14px;
+  }
+  .card .head .tag {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--terracotta);
+  }
+  .card .head .title {
+    font-family: var(--serif); font-size: 28px;
+    line-height: 1; letter-spacing: -0.01em;
+    color: var(--near-black);
+  }
+  .card .head .sub {
+    margin-left: auto;
+    font-family: var(--mono); font-size: 10px;
+    color: var(--stone); letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .card .body {
+    flex: 1; padding: 24px; overflow: hidden;
+  }
+  .card .foot {
+    border-top: 1px dashed var(--border-warm);
+    padding: 12px 22px;
+    font-family: var(--mono); font-size: 11px; color: var(--olive);
+    line-height: 1.5;
+    background: var(--parchment);
+  }
+
+  /* ───────── Favicon grid ───────── */
+  .fav-row {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    align-items: center;
+    gap: 18px;
+    padding: 14px 0;
+    border-bottom: 1px dotted var(--border-warm);
+  }
+  .fav-row:last-child { border-bottom: none; }
+  .fav-row .meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--olive);
+    line-height: 1.5;
+  }
+  .fav-row .meta .big {
+    font-family: var(--serif); font-size: 22px; color: var(--near-black);
+    line-height: 1;
+  }
+  .fav-row .meta .note { color: var(--stone); font-size: 10px; }
+  .fav-row .swatches {
+    display: flex; align-items: center; gap: 16px;
+  }
+  .fav-swatch {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  .fav-swatch .px { font-family: var(--mono); font-size: 9px; color: var(--stone); letter-spacing: 0.08em; }
+  .fav-tile {
+    display: flex; align-items: center; justify-content: center;
+    background: var(--ivory);
+    border: 1px solid var(--border-cream);
+    border-radius: 4px;
+  }
+  .fav-tile.dark { background: var(--near-black); border-color: var(--dark-surface); }
+  .fav-tile.terra { background: var(--terracotta); border-color: var(--terracotta); }
+
+  /* ───────── In-context mockups ───────── */
+  .ctx-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+    height: 100%;
+  }
+  .ctx-grid > div { display: flex; flex-direction: column; gap: 10px; }
+  .ctx-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--stone); }
+
+  /* Browser tab mock */
+  .tab-strip {
+    display: flex; align-items: flex-end; gap: 2px;
+    padding: 0;
+    background: #d9d6cc;
+    border-radius: 6px 6px 0 0; overflow: hidden;
+    height: 36px;
+  }
+  .tab-strip .tab {
+    background: var(--parchment); color: var(--near-black);
+    padding: 0 14px 0 10px; height: 32px;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; min-width: 120px;
+    border-radius: 6px 6px 0 0;
+    margin-top: 4px;
+  }
+  .tab-strip .tab.inactive {
+    background: #c9c5b8; color: var(--olive);
+  }
+  .tab-strip .tab .x {
+    margin-left: auto; color: var(--stone); font-size: 11px;
+  }
+  .browser-frame {
+    background: var(--parchment);
+    border: 1px solid var(--border-warm);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .url-bar {
+    height: 30px; background: var(--ivory);
+    border-bottom: 1px solid var(--border-cream);
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 12px;
+    font-family: var(--mono); font-size: 11px; color: var(--olive);
+  }
+  .url-bar .lock { color: var(--stone); }
+
+  /* Dock icon mock */
+  .dock {
+    background: rgba(40,30,20,0.25);
+    border-radius: 18px;
+    padding: 10px 14px;
+    display: flex; gap: 10px; align-items: center;
+    backdrop-filter: blur(8px);
+  }
+  .dock-icon {
+    width: 52px; height: 52px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--parchment);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+  }
+  .dock-icon.terra { background: var(--terracotta); }
+  .dock-icon.dark { background: var(--near-black); }
+  .dock-icon.dummy {
+    background: linear-gradient(135deg, #9ab0c8, #4a6a8a);
+  }
+  .dock-icon.dummy.b { background: linear-gradient(135deg, #c8b09a, #8a6a4a); }
+
+  /* iOS home screen */
+  .ios-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 14px; padding: 16px;
+    background: linear-gradient(180deg, #2a3f5f, #1a2640);
+    border-radius: 18px;
+  }
+  .ios-icon {
+    aspect-ratio: 1;
+    border-radius: 14px;
+    background: var(--terracotta);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    position: relative;
+  }
+  .ios-icon.helm { background: var(--terracotta); }
+  .ios-icon.helm-dark { background: var(--near-black); }
+  .ios-icon.dummy { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); }
+  .ios-label {
+    position: absolute;
+    bottom: -18px; left: 0; right: 0;
+    text-align: center;
+    color: white; font-size: 9px;
+    font-family: var(--sans);
+  }
+
+  /* ───────── Motion ───────── */
+  .motion-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+    height: 100%;
+  }
+  .motion-cell {
+    background: var(--ivory);
+    border: 1px solid var(--border-cream);
+    border-radius: 12px;
+    padding: 18px;
+    display: flex; flex-direction: column;
+    gap: 12px;
+    overflow: hidden;
+  }
+  .motion-cell.dark {
+    background: var(--near-black);
+    border-color: var(--dark-surface);
+    color: var(--warm-silver);
+  }
+  .motion-stage {
+    flex: 1;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 140px;
+  }
+  .motion-label {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--stone);
+  }
+  .motion-cell .name {
+    font-family: var(--serif); font-size: 22px;
+    line-height: 1; color: var(--near-black);
+  }
+  .motion-cell.dark .name { color: #faf9f5; }
+  .motion-cell .desc {
+    font-family: var(--mono); font-size: 10px; line-height: 1.5;
+    color: var(--olive);
+  }
+  .motion-cell.dark .desc { color: var(--warm-silver); }
+
+  /* keyframes */
+  @keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+  @keyframes spin-fast {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+  @keyframes spin-ease {
+    0%, 30%  { transform: rotate(0deg); }
+    60%      { transform: rotate(180deg); }
+    100%     { transform: rotate(360deg); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.3; transform: scale(0.85); }
+  }
+  @keyframes blink {
+    0%, 49%  { opacity: 1; }
+    50%, 100%{ opacity: 0.2; }
+  }
+  @keyframes draw-in {
+    from { stroke-dashoffset: 220; }
+    to   { stroke-dashoffset: 0; }
+  }
+  @keyframes draw-ring {
+    from { stroke-dashoffset: 220; opacity: 0.3; }
+    to   { stroke-dashoffset: 0; opacity: 1; }
+  }
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes underline {
+    0%, 10% { transform: scaleX(0); }
+    50%     { transform: scaleX(1); }
+    90%,100%{ transform: scaleX(1); }
+  }
+  @keyframes shimmer {
+    0%, 100% { color: var(--terracotta); }
+    50%      { color: var(--coral); }
+  }
+  @keyframes rotate-snap {
+    0%   { transform: rotate(-60deg); opacity: 0; }
+    60%  { transform: rotate(8deg); opacity: 1; }
+    80%  { transform: rotate(-3deg); }
+    100% { transform: rotate(0deg); }
+  }
+  @keyframes letter-in {
+    from { opacity: 0; transform: translateY(6px); filter: blur(2px); }
+    to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+  }
+
+  .anim-spin-slow { animation: spin-slow 24s linear infinite; transform-origin: center; }
+  .anim-spin-fast { animation: spin-fast 1.6s linear infinite; transform-origin: center; }
+  .anim-spin-ease { animation: spin-ease 4s cubic-bezier(.5,0,.2,1) infinite; transform-origin: center; }
+  .anim-pulse { animation: pulse 2.4s ease-in-out infinite; transform-origin: center; }
+
+  /* combined entrance lockup */
+  .entrance {
+    display: flex; align-items: center; gap: 18px;
+  }
+  .entrance .mark-wrap {
+    display: inline-flex;
+    animation: rotate-snap 1.2s cubic-bezier(.34,1.56,.64,1) both;
+    animation-iteration-count: infinite;
+    animation-delay: 0s;
+    transform-origin: center;
+  }
+  .entrance-loop {
+    /* full loop including pause */
+    animation: entrance-loop 5s ease-in-out infinite;
+  }
+  @keyframes entrance-loop {
+    0%, 70%  { opacity: 1; }
+    85%, 100%{ opacity: 0; }
+  }
+
+  /* draw-in wheel paths */
+  .draw-spoke { stroke-dasharray: 60; stroke-dashoffset: 60; animation: draw-in 1.4s ease-out forwards infinite; animation-direction: alternate; }
+  .draw-ring  { stroke-dasharray: 220; stroke-dashoffset: 220; animation: draw-ring 1.6s ease-out forwards infinite; animation-direction: alternate; }
+
+  /* wordmark animations */
+  .wm-base {
+    font-family: var(--serif);
+    font-size: 64px;
+    letter-spacing: -0.01em;
+    line-height: 1;
+    color: var(--near-black);
+    display: inline-flex;
+    align-items: baseline;
+  }
+  .wm-base .stop {
+    color: var(--terracotta);
+    margin-left: 1px;
+  }
+  .wm-base .stop.blink { animation: blink 1.1s steps(1) infinite; }
+  .wm-base .stop.pulse { animation: pulse 1.6s ease-in-out infinite; display: inline-block; transform-origin: 50% 80%; }
+  .wm-base .stop.shimmer { animation: shimmer 2.4s ease-in-out infinite; }
+
+  .wm-letters span { display: inline-block; opacity: 0; animation: letter-in .5s ease-out forwards; }
+  .wm-letters span:nth-child(1) { animation-delay: .05s; }
+  .wm-letters span:nth-child(2) { animation-delay: .18s; }
+  .wm-letters span:nth-child(3) { animation-delay: .31s; }
+  .wm-letters span:nth-child(4) { animation-delay: .44s; }
+  .wm-letters span:nth-child(5) { animation-delay: .65s; }
+  /* loop the letters animation by restarting via re-mount; instead use full-set keyframes on parent */
+  .wm-letters {
+    animation: wm-letters-loop 4.8s linear infinite;
+  }
+  @keyframes wm-letters-loop {
+    0%, 85%  { opacity: 1; }
+    95%,100% { opacity: 0; }
+  }
+
+  .wm-underline {
+    position: relative;
+    display: inline-block;
+  }
+  .wm-underline::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 4px;
+    height: 2px;
+    background: var(--terracotta);
+    transform: scaleX(0); transform-origin: left center;
+    animation: underline 3.4s ease-in-out infinite;
+  }
+
+  /* loading state caption */
+  .loading-caption {
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--stone);
+    display: inline-flex; gap: 6px; align-items: center;
+  }
+  .loading-caption .dot-loader {
+    display: inline-flex; gap: 3px;
+  }
+  .loading-caption .dot-loader i {
+    display: inline-block; width: 3px; height: 3px; border-radius: 50%;
+    background: var(--terracotta);
+    animation: blink 0.9s steps(1) infinite;
+  }
+  .loading-caption .dot-loader i:nth-child(2) { animation-delay: .15s; }
+  .loading-caption .dot-loader i:nth-child(3) { animation-delay: .3s; }
+
+  /* H. derived favicon */
+  .h-mark {
+    font-family: var(--serif);
+    font-weight: 400;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    display: inline-flex;
+    align-items: baseline;
+  }
+</style>
+</head>
+<body>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="wheel-variants.jsx"></script>
+<script type="text/babel" src="favicon-motion.jsx"></script>
+
+<div id="root"></div>
+</body>
+</html>

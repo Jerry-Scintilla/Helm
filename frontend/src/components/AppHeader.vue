@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
 import { usePortraitStore } from '@/stores/portrait'
+import CachedImg from '@/components/CachedImg.vue'
 import api from '@/api'
 
 const router = useRouter()
@@ -122,11 +123,10 @@ function handleLangSelect(key: string) {
       <!-- Character switcher -->
       <n-dropdown trigger="click" :options="charMenuOptions" @select="handleCharMenu">
         <div class="char-pill">
-          <img
+          <CachedImg
             v-if="auth.characterId"
             :src="portraitStore.getUrl(auth.characterId!, 32)"
             class="char-avatar"
-            alt=""
           />
           <span class="char-name">{{ auth.characterName }}</span>
           <span class="caret">▾</span>

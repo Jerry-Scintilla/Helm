@@ -7,6 +7,7 @@ import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import HelmLoader from '@/components/HelmLoader.vue'
+import CachedImg from '@/components/CachedImg.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -49,7 +50,7 @@ function renderMarkdown(content: string): string {
     <template v-else-if="charStore.characterInfo">
       <!-- Character header -->
       <div class="char-header">
-        <img
+        <CachedImg
           :src="portraitUrl"
           class="portrait"
           :alt="charStore.characterInfo.character_name"

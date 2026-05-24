@@ -7,6 +7,7 @@ import type { DataTableColumns } from 'naive-ui'
 import type { CorporationAsset } from '@/stores/corporation'
 import { resolveSdeName } from '@/utils/sde'
 import HelmLoader from '@/components/HelmLoader.vue'
+import CachedImg from '@/components/CachedImg.vue'
 
 const route = useRoute()
 const corpStore = useCorporationStore()
@@ -35,7 +36,7 @@ const cols: DataTableColumns<CorporationAsset> = [
       const name = resolveSdeName(r.type_name, String(r.type_id))
       if (!r.icon_url) return name
       return h('span', { style: 'display:flex;align-items:center;gap:6px;' }, [
-        h('img', { src: r.icon_url, width: 24, height: 24, alt: '', loading: 'lazy', style: 'border-radius:2px;flex-shrink:0;', onError: (e: Event) => { (e.target as HTMLImageElement).style.display = 'none' } }),
+        h(CachedImg, { src: r.icon_url, width: 24, height: 24, style: 'border-radius:2px;flex-shrink:0;', onError: (e: Event) => { (e.target as HTMLImageElement).style.display = 'none' } }),
         name,
       ])
     },

@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import api from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { usePortraitStore } from '@/stores/portrait'
+import CachedImg from '@/components/CachedImg.vue'
 import HelmLoader from '@/components/HelmLoader.vue'
 
 interface CharacterSummary {
@@ -124,7 +125,7 @@ async function unbind(char: CharacterSummary) {
         >
           <div class="char-main" @click="goCharacter(char.character_id)">
             <div class="char-portrait-wrap">
-              <img
+              <CachedImg
                 :src="portraitStore.getUrl(char.character_id, 128)"
                 :alt="char.character_name"
                 class="char-portrait"

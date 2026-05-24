@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { resolveSdeName } from '@/utils/sde'
 import type { SdeName } from '@/utils/sde'
 import AssetItemGroup from './AssetItemGroup.vue'
+import CachedImg from './CachedImg.vue'
 
 export interface AssetNode {
   item_id: number
@@ -48,7 +49,7 @@ const depth = props.depth ?? 0
           @click="toggle(node.item_id)"
         >
           <span class="container-name">
-            <img v-if="node.icon_url" :src="node.icon_url" class="type-icon" width="24" height="24" alt="" loading="lazy" @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')" />
+            <CachedImg v-if="node.icon_url" :src="node.icon_url" class="type-icon" :width="24" :height="24" @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')" />
             {{ resolveSdeName(node.type_name, String(node.type_id)) }}
           </span>
           <span class="container-meta">
@@ -64,7 +65,7 @@ const depth = props.depth ?? 0
       <!-- Leaf item -->
       <div v-else class="asset-row" :class="`indent-${Math.min(depth, 4)}`">
         <span class="type-name">
-          <img v-if="node.icon_url" :src="node.icon_url" class="type-icon" width="24" height="24" alt="" loading="lazy" />
+          <CachedImg v-if="node.icon_url" :src="node.icon_url" class="type-icon" :width="24" :height="24" />
           {{ resolveSdeName(node.type_name, String(node.type_id)) }}
         </span>
         <span class="qty">{{ node.is_singleton ? '1' : node.quantity }}</span>

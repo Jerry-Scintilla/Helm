@@ -4,22 +4,24 @@
     :src="iframeSrc"
     class="plugin-iframe"
     sandbox="allow-scripts allow-same-origin allow-forms"
-    @load="sendInit"
+    @load="onLoad"
   />
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { usePluginStore } from '@/stores/plugin'
 import { useLocaleStore } from '@/stores/locale'
+import { useIframePluginHost } from '@/composables/useIframePluginHost'
 
 const route = useRoute()
-const router = useRouter()
 const pluginStore = usePluginStore()
 const localeStore = useLocaleStore()
 const iframeRef = ref<HTMLIFrameElement>()
-const apiBase = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const mountToken = Date.now()
+
+const { onLoad } = useIframePluginHost(iframeRef)
 
 const iframeSrc = computed(() => {
   const pluginName = route.meta.pluginName as string
@@ -28,49 +30,17 @@ const iframeSrc = computed(() => {
   const plugin = pluginStore.plugins.find(p => p.name === pluginName)
   const sub = plugin?.meta?.character_submodules?.find(s => s.slug === slug)
   const base = sub?.iframe_url_template?.replace('{character_id}', cid) ?? ''
-  if (!base) return ''
-  const token = pluginStore.pluginCacheTokens[pluginName]
+  if (!base) return 'about:blank'
+  const token = pluginStore.pluginCacheTokens[pluginName] ?? mountToken
   const lang = localeStore.locale
   const sep = base.includes('?') ? '&' : '?'
-  const vParam = token ? `_v=${token}&` : ''
-  return `${base}${sep}${vParam}lang=${lang}`
+  return `${base}${sep}_v=${token}&lang=${lang}`
 })
 
-function sendInit() {
-  iframeRef.value?.contentWindow?.postMessage(
-    {
-      type: 'helm:init',
-      payload: {
-        token: localStorage.getItem('access_token'),
-        apiBase,
-        locale: localeStore.locale,
-      },
-    },
-    '*',
-  )
-}
-
-function handleMessage(event: MessageEvent) {
-  const data = event.data as { type?: string; payload?: Record<string, unknown> }
-  if (!data?.type) return
-
-  if (data.type === 'helm:ready') {
-    sendInit()
-  } else if (data.type === 'helm:navigate' && data.payload?.route) {
-    router.push({ name: data.payload.route as string })
-  } else if (data.type === 'helm:token:expired') {
-    iframeRef.value?.contentWindow?.postMessage(
-      {
-        type: 'helm:token:refreshed',
-        payload: { token: localStorage.getItem('access_token') },
-      },
-      '*',
-    )
-  }
-}
-
-onMounted(() => window.addEventListener('message', handleMessage))
-onUnmounted(() => window.removeEventListener('message', handleMessage))
+onMounted(() => {
+  const pluginName = route.meta.pluginName as string | undefined
+  if (pluginName) pluginStore.ensureCacheToken(pluginName)
+})
 </script>
 
 <style scoped>

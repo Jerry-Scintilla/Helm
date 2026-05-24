@@ -12,10 +12,51 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// On 401: refresh token then retry
-let isRefreshing = false
-let refreshQueue: Array<(token: string) => void> = []
+// ── Shared token refresh ─────────────────────────────────────────────────────
+// Dedupes concurrent refresh calls from both the axios 401 interceptor and
+// iframe plugins (via helm:token:expired). On success returns the new access
+// token; on failure clears auth state and redirects to /login.
 
+let refreshPromise: Promise<string> | null = null
+const tokenListeners = new Set<(token: string) => void>()
+
+export function onAccessTokenRefreshed(cb: (token: string) => void): () => void {
+  tokenListeners.add(cb)
+  return () => tokenListeners.delete(cb)
+}
+
+export function refreshAccessToken(): Promise<string> {
+  if (refreshPromise) return refreshPromise
+
+  refreshPromise = (async () => {
+    const refreshToken = localStorage.getItem('refresh_token')
+    if (!refreshToken) throw new Error('No refresh token')
+
+    const base = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+    try {
+      const { data } = await axios.post(`${base}/api/v1/auth/token/refresh`, {
+        refresh_token: refreshToken,
+      })
+      const newToken = data.access_token as string
+      localStorage.setItem('access_token', newToken)
+      tokenListeners.forEach((cb) => {
+        try { cb(newToken) } catch {}
+      })
+      return newToken
+    } catch (err) {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      window.location.href = '/login'
+      throw err
+    } finally {
+      refreshPromise = null
+    }
+  })()
+
+  return refreshPromise
+}
+
+// On 401: refresh token then retry
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
@@ -24,40 +65,12 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
     original._retry = true
-
-    if (isRefreshing) {
-      return new Promise((resolve) => {
-        refreshQueue.push((token: string) => {
-          original.headers.Authorization = `Bearer ${token}`
-          resolve(api(original))
-        })
-      })
-    }
-
-    isRefreshing = true
     try {
-      const refreshToken = localStorage.getItem('refresh_token')
-      if (!refreshToken) throw new Error('No refresh token')
-
-      const base = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
-      const { data } = await axios.post(`${base}/api/v1/auth/token/refresh`, {
-        refresh_token: refreshToken,
-      })
-      const newToken = data.access_token
-      localStorage.setItem('access_token', newToken)
-
-      refreshQueue.forEach((cb) => cb(newToken))
-      refreshQueue = []
-
+      const newToken = await refreshAccessToken()
       original.headers.Authorization = `Bearer ${newToken}`
       return api(original)
     } catch {
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('refresh_token')
-      window.location.href = '/login'
       return Promise.reject(error)
-    } finally {
-      isRefreshing = false
     }
   }
 )

@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Helm Logo · Asset Index</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --parchment: #f5f4ed;
+    --ivory: #faf9f5;
+    --terracotta: #c96442;
+    --coral: #d97757;
+    --near-black: #141413;
+    --dark-surface: #30302e;
+    --charcoal: #4d4c48;
+    --olive: #5e5d59;
+    --stone: #87867f;
+    --warm-silver: #b0aea5;
+    --border-cream: #f0eee6;
+    --border-warm: #e8e6dc;
+    --serif: 'Instrument Serif', Georgia, serif;
+    --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  }
+  html, body { margin:0; padding:0; background: var(--parchment); color: var(--near-black); font-family: var(--sans); }
+  body { display: flex; justify-content: center; }
+  main { max-width: 1100px; width: 100%; padding: 80px 56px 120px; box-sizing: border-box; }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--terracotta); margin-bottom: 14px;
+  }
+  h1 { font-family: var(--serif); font-weight: 400; font-size: 88px; line-height: 1; letter-spacing: -0.015em; margin: 0 0 18px; }
+  h1 .stop { color: var(--terracotta); }
+  .lede { font-size: 18px; line-height: 1.6; color: var(--olive); max-width: 620px; margin: 0 0 56px; }
+
+  .hero {
+    display: flex; align-items: center; gap: 28px;
+    margin-bottom: 72px;
+    padding: 36px 40px;
+    background: var(--ivory);
+    border: 1px solid var(--border-cream);
+    border-radius: 24px;
+  }
+  .hero img { width: 132px; height: 132px; flex-shrink: 0; }
+  .hero .hero-title {
+    font-family: var(--serif); font-size: 64px; line-height: 1.05; letter-spacing: -0.01em;
+  }
+  .hero .hero-sub {
+    margin-top: 10px; font-size: 14px; color: var(--olive); line-height: 1.55; max-width: 480px;
+  }
+
+  h2 { font-family: var(--serif); font-weight: 400; font-size: 40px; line-height: 1.15; letter-spacing: -0.01em; margin: 64px 0 6px; }
+  .section-sub {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--stone); margin-bottom: 32px;
+  }
+
+  .grid {
+    display: grid;
+    gap: 18px;
+  }
+  .grid.svg { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+  .grid.png-size { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .grid.app { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+
+  .card {
+    background: var(--ivory);
+    border: 1px solid var(--border-cream);
+    border-radius: 14px;
+    padding: 18px;
+    display: flex; flex-direction: column; gap: 10px;
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.06); }
+
+  .card .preview {
+    height: 110px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--parchment);
+    overflow: hidden;
+  }
+  .card .preview.dark { background: var(--near-black); }
+  .card .preview.terra { background: var(--terracotta); }
+  .card .preview.checker {
+    background-image:
+      linear-gradient(45deg, var(--border-cream) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--border-cream) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--border-cream) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--border-cream) 75%);
+    background-size: 12px 12px;
+    background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+    background-color: var(--ivory);
+  }
+  .card .preview img { max-width: 70%; max-height: 90%; image-rendering: pixelated; }
+  .card .preview img.smooth { image-rendering: auto; }
+  .card .name {
+    font-family: var(--mono); font-size: 11px; color: var(--near-black); line-height: 1.4;
+    word-break: break-all;
+  }
+  .card .meta { font-family: var(--mono); font-size: 10px; color: var(--stone); }
+  .card a.dl {
+    margin-top: auto;
+    text-decoration: none;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--terracotta);
+    padding: 6px 10px;
+    border: 1px solid var(--border-warm);
+    border-radius: 6px;
+    text-align: center;
+    transition: background .12s, color .12s;
+  }
+  .card a.dl:hover { background: var(--terracotta); color: var(--ivory); border-color: var(--terracotta); }
+
+  /* PNG actual-size row */
+  .actual-row {
+    display: flex; align-items: flex-end; gap: 28px;
+    padding: 32px;
+    background: var(--ivory);
+    border: 1px solid var(--border-cream);
+    border-radius: 14px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+  }
+  .actual-cell { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .actual-cell .px {
+    font-family: var(--mono); font-size: 10px; color: var(--stone); letter-spacing: 0.12em;
+  }
+  .actual-cell img { image-rendering: pixelated; }
+  .actual-cell .container {
+    background: var(--parchment); border: 1px solid var(--border-cream);
+    padding: 6px; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .downloadbar {
+    position: sticky; top: 24px;
+    background: var(--near-black); color: var(--ivory);
+    padding: 20px 28px;
+    border-radius: 16px;
+    margin: 0 0 56px;
+    display: flex; align-items: center; gap: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    z-index: 10;
+  }
+  .downloadbar .lbl {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--coral);
+  }
+  .downloadbar .title {
+    font-family: var(--serif); font-size: 22px; line-height: 1;
+  }
+  .downloadbar .desc {
+    font-size: 13px; color: var(--warm-silver); line-height: 1.5;
+  }
+  .downloadbar .btn {
+    margin-left: auto;
+    background: var(--terracotta); color: var(--ivory);
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px; font-weight: 500;
+    text-decoration: none;
+    border: none; cursor: pointer;
+    transition: background .15s;
+    font-family: inherit;
+  }
+  .downloadbar .btn:hover { background: var(--coral); }
+
+  pre {
+    background: var(--near-black); color: var(--warm-silver);
+    padding: 18px 22px;
+    border-radius: 12px;
+    overflow-x: auto;
+    font-family: var(--mono); font-size: 12px; line-height: 1.6;
+    margin: 24px 0;
+  }
+  code { font-family: var(--mono); }
+  pre .k { color: var(--coral); }
+
+  footer {
+    margin-top: 96px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border-warm);
+    font-family: var(--mono); font-size: 11px;
+    color: var(--stone); letter-spacing: 0.1em;
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Helm · brand asset · v01</div>
+  <h1>Helm<span class="stop">.</span> logo assets</h1>
+  <p class="lede">
+    Generated SVG and PNG exports for the Wheel and Wordmark directions. 15 SVG masters · 25 PNG rasters tuned per size. Drop the recommended set into <code>frontend/public/</code> and you're done.
+  </p>
+
+  <div class="downloadbar">
+    <div>
+      <div class="lbl">Download</div>
+      <div class="title">Everything — SVG + PNG</div>
+      <div class="desc">A zipped <code>logo/</code> folder with all 40 files and README.</div>
+    </div>
+    <button class="btn" id="dlbtn">Get the bundle ↓</button>
+  </div>
+
+  <div class="hero">
+    <img src="logo/svg/wheel-full-black.svg" alt="Helm wheel mark" />
+    <div>
+      <div class="hero-title">Helm<span style="color:var(--terracotta)">.</span></div>
+      <div class="hero-sub">Named after the command center of a spaceship — a thin, fast host for EVE Online fleet ops. The wheel is the favicon; the serif wordmark is the in-app brand.</div>
+    </div>
+  </div>
+
+  <h2>Actual-size favicon preview</h2>
+  <div class="section-sub">Pixel-rendered, no scaling — this is how it will look in a browser tab</div>
+  <div class="actual-row">
+    <div class="actual-cell">
+      <div class="container" style="width: 28px; height: 28px;">
+        <img src="logo/png/favicon-16.png" width="16" height="16" alt="16px">
+      </div>
+      <div class="px">16 × 16</div>
+    </div>
+    <div class="actual-cell">
+      <div class="container" style="width: 44px; height: 44px;">
+        <img src="logo/png/favicon-32.png" width="32" height="32" alt="32px">
+      </div>
+      <div class="px">32 × 32</div>
+    </div>
+    <div class="actual-cell">
+      <div class="container" style="width: 60px; height: 60px;">
+        <img src="logo/png/favicon-48.png" width="48" height="48" alt="48px">
+      </div>
+      <div class="px">48 × 48</div>
+    </div>
+    <div class="actual-cell">
+      <div class="container" style="width: 76px; height: 76px;">
+        <img src="logo/png/favicon-64.png" width="64" height="64" alt="64px">
+      </div>
+      <div class="px">64 × 64</div>
+    </div>
+    <div class="actual-cell">
+      <div class="container" style="width: 140px; height: 140px;">
+        <img src="logo/png/favicon-128.png" width="128" height="128" alt="128px">
+      </div>
+      <div class="px">128 × 128</div>
+    </div>
+    <div class="actual-cell">
+      <div class="container" style="width: 192px; height: 192px; padding: 6px; background: var(--terracotta); border: none; border-radius: 32px;">
+        <img class="smooth" src="logo/png/apple-touch-icon-180.png" width="180" height="180" alt="180px">
+      </div>
+      <div class="px">180 × 180 · iOS</div>
+    </div>
+  </div>
+
+  <h2>SVG masters</h2>
+  <div class="section-sub">Vector — infinitely scalable, edit-friendly</div>
+  <div class="grid svg" id="svg-grid"></div>
+
+  <h2>PNG · transparent favicons</h2>
+  <div class="section-sub">Wheel mark on transparent, black ink</div>
+  <div class="grid png-size" id="png-favicon"></div>
+
+  <h2>PNG · app icons</h2>
+  <div class="section-sub">Pre-composed squircle background — Apple, Android, PWA</div>
+  <div class="grid app" id="png-app"></div>
+
+  <h2>PNG · colorway variants</h2>
+  <div class="section-sub">Ivory (for dark UI) and terracotta (brand color)</div>
+  <div class="grid png-size" id="png-color"></div>
+
+  <h2>Integration</h2>
+  <p style="color: var(--olive); line-height: 1.65; max-width: 720px; font-size: 15px;">
+    Drop into <code>frontend/public/</code>:
+  </p>
+<pre><span class="k">&lt;link</span> rel=<span style="color:#e0c896">"icon"</span> href=<span style="color:#e0c896">"/favicon.svg"</span> type=<span style="color:#e0c896">"image/svg+xml"</span><span class="k">&gt;</span>
+<span class="k">&lt;link</span> rel=<span style="color:#e0c896">"icon"</span> sizes=<span style="color:#e0c896">"32x32"</span> href=<span style="color:#e0c896">"/favicon-32.png"</span><span class="k">&gt;</span>
+<span class="k">&lt;link</span> rel=<span style="color:#e0c896">"icon"</span> sizes=<span style="color:#e0c896">"16x16"</span> href=<span style="color:#e0c896">"/favicon-16.png"</span><span class="k">&gt;</span>
+<span class="k">&lt;link</span> rel=<span style="color:#e0c896">"apple-touch-icon"</span> href=<span style="color:#e0c896">"/apple-touch-icon.png"</span><span class="k">&gt;</span>
+<span class="k">&lt;link</span> rel=<span style="color:#e0c896">"manifest"</span> href=<span style="color:#e0c896">"/site.webmanifest"</span><span class="k">&gt;</span>
+<span class="k">&lt;meta</span> name=<span style="color:#e0c896">"theme-color"</span> content=<span style="color:#e0c896">"#c96442"</span><span class="k">&gt;</span></pre>
+
+  <p style="color: var(--olive); line-height: 1.65; max-width: 720px; font-size: 15px;">
+    For a classic multi-resolution <code>favicon.ico</code>, run:
+  </p>
+<pre>magick logo/png/favicon-16.png logo/png/favicon-32.png logo/png/favicon-48.png favicon.ico</pre>
+
+  <footer>
+    Helm · brand assets · generated v01 · README at <code>logo/README.md</code>
+  </footer>
+</main>
+
+<script>
+// Populate file grids by listing what we know exists
+const svgFiles = [
+  ['wheel-full-black.svg',       'Wheel · full · black',       'Primary mark · ≥48 px',     'checker'],
+  ['wheel-full-terracotta.svg',  'Wheel · full · terracotta',  'Brand color on transparent','checker'],
+  ['wheel-full-ivory.svg',       'Wheel · full · ivory',       'For use on dark UI',        'dark'],
+  ['wheel-full-coral.svg',       'Wheel · full · coral',       'Coral accent variant',      'dark'],
+  ['wheel-mid-black.svg',        'Wheel · mid · black',        '24–36 px — no inner ring',  'checker'],
+  ['wheel-mid-ivory.svg',        'Wheel · mid · ivory',        '24–36 px on dark',          'dark'],
+  ['wheel-tiny-black.svg',       'Wheel · tiny · black',       '≤20 px — 4-spoke compass',  'checker'],
+  ['wheel-tiny-ivory.svg',       'Wheel · tiny · ivory',       '≤20 px on dark',            'dark'],
+  ['h-mark-black.svg',           'H. monogram · black',        'Wordmark direction',        'checker'],
+  ['h-mark-ivory.svg',           'H. monogram · ivory',        'Wordmark · dark',           'dark'],
+  ['lockup-horizontal-black.svg','Lockup · horizontal · black','Wheel + Helm.',             'checker'],
+  ['lockup-horizontal-ivory.svg','Lockup · horizontal · ivory','Wheel + Helm. on dark',     'dark'],
+  ['app-icon-terracotta.svg',    'App icon · terracotta',      'Squircle + wheel',          ''],
+  ['app-icon-black.svg',         'App icon · near-black',      'Squircle + coral wheel',    ''],
+  ['app-icon-ivory.svg',         'App icon · ivory',           'Inverse squircle',          ''],
+];
+
+const pngFavicons = [16, 32, 48, 64, 96, 128, 180, 192, 256, 512];
+const pngApple = [120, 152, 167, 180];
+const pngColor = [
+  ['favicon-32-ivory.png',       'Ivory · 32',        'dark'],
+  ['favicon-64-ivory.png',       'Ivory · 64',        'dark'],
+  ['favicon-180-ivory.png',      'Ivory · 180',       'dark'],
+  ['favicon-512-ivory.png',      'Ivory · 512',       'dark'],
+  ['favicon-64-terracotta.png',  'Terracotta · 64',   'checker'],
+  ['favicon-180-terracotta.png', 'Terracotta · 180',  'checker'],
+  ['favicon-512-terracotta.png', 'Terracotta · 512',  'checker'],
+];
+
+function card(href, name, meta, prevClass, isSvg = false, smooth = false) {
+  return `<div class="card">
+    <div class="preview ${prevClass}"><img ${smooth?'class="smooth"':''} src="${href}" alt=""></div>
+    <div class="name">${name}</div>
+    <div class="meta">${meta}</div>
+    <a class="dl" href="${href}" download>Download</a>
+  </div>`;
+}
+
+document.getElementById('svg-grid').innerHTML =
+  svgFiles.map(([f, n, m, bg]) => card(`logo/svg/${f}`, n, m, bg || 'checker', true, true)).join('');
+
+document.getElementById('png-favicon').innerHTML =
+  pngFavicons.map(sz => card(`logo/png/favicon-${sz}.png`, `favicon-${sz}.png`, `${sz} × ${sz}`, 'checker', false, sz >= 48)).join('');
+
+document.getElementById('png-app').innerHTML = [
+  ...pngApple.map(sz => [`apple-touch-icon-${sz}.png`, `Apple touch · ${sz}`, '']),
+  ['android-chrome-192.png', 'Android · 192', ''],
+  ['android-chrome-512.png', 'Android · 512', ''],
+  ['android-chrome-192-dark.png', 'Android dark · 192', ''],
+  ['android-chrome-512-dark.png', 'Android dark · 512', ''],
+].map(([f, n]) => card(`logo/png/${f}`, n, f, '', false, true)).join('');
+
+document.getElementById('png-color').innerHTML =
+  pngColor.map(([f, n, bg]) => card(`logo/png/${f}`, n, f, bg, false, true)).join('');
+
+// Bundle download — route to host
+document.getElementById('dlbtn').addEventListener('click', () => {
+  window.parent.postMessage({type: '__open_external', url: '#'}, '*');
+  alert('In the chat: I will trigger a download card for the logo/ folder below.');
+});
+</script>
+
+</body>
+</html>

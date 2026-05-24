@@ -1,0 +1,126 @@
+/*
+ * Helm Motion · standalone keyframe library
+ *
+ * The full set of @keyframes from the design's "Motion studies". Mirrors the
+ * <style> block in components/HelmWheel.vue so the same animations are
+ * usable outside that component — apply the keyframe name + a token from
+ * brandMotion in @/assets/brand/index.ts.
+ *
+ * Usage:
+ *   @import '@/assets/brand/motion/helm-motion.css';
+ *
+ *   .my-spinner {
+ *     animation: helm-spin-fast 1.6s linear infinite;
+ *     transform-origin: 50% 50%;
+ *   }
+ *
+ * Or via brandMotion tokens:
+ *   import { brandMotion } from '@/assets/brand'
+ *   const m = brandMotion.spinFast
+ *   // animation: `${m.name} ${m.duration} ${m.easing} infinite`
+ *
+ * All loops respect `prefers-reduced-motion: reduce` via the media query at
+ * the bottom — disabled rotations, reveal animations snap to their final
+ * state.
+ */
+
+/* 01 · Idle (24s) / 02 · Loading (1.6s) — continuous rotation. */
+@keyframes helm-spin-fast {
+  to { transform: rotate(360deg); }
+}
+
+/* 03 · Reveal — outer/inner ring stroke-in. Pair with stroke-dasharray:220
+   and pathLength="220" on the <circle>. */
+@keyframes helm-draw-ring-kf {
+  from { stroke-dashoffset: 220; opacity: 0.3; }
+  to   { stroke-dashoffset: 0;   opacity: 1;   }
+}
+
+/* 03 · Reveal — spoke stroke-in. Pair with stroke-dasharray:60 and
+   pathLength="60" on each spoke <line>; stagger via animation-delay. */
+@keyframes helm-draw-spoke-kf {
+  from { stroke-dashoffset: 60; }
+  to   { stroke-dashoffset: 0;  }
+}
+
+/* 04 · Pulse — center pip breathes. Apply with transform-origin:50% 50% and
+   transform-box:fill-box for correct scaling inside SVG. */
+@keyframes helm-pip-pulse-kf {
+  0%, 100% { opacity: 1;   transform: scale(1);    }
+  50%      { opacity: 0.3; transform: scale(0.85); }
+}
+
+/* Combined entrance — snap-rotate from -60° with cubic overshoot. */
+@keyframes helm-rotate-snap {
+  0%   { transform: rotate(-60deg); opacity: 0; }
+  60%  { transform: rotate(8deg);   opacity: 1; }
+  80%  { transform: rotate(-3deg); }
+  100% { transform: rotate(0deg); }
+}
+
+/* Wordmark · Reveal — per-glyph fade + de-blur. */
+@keyframes helm-letter-in {
+  from { opacity: 0; transform: translateY(6px); filter: blur(2px); }
+  to   { opacity: 1; transform: translateY(0);   filter: blur(0);   }
+}
+
+/* Wordmark · Blink — terminal-cursor stop on the period. Use with
+   `steps(1)` easing for an instant on/off. */
+@keyframes helm-blink {
+  0%, 49%   { opacity: 1;   }
+  50%, 100% { opacity: 0.2; }
+}
+
+/* Wordmark · Pulse — slower breathing dot, ease-in-out. */
+@keyframes helm-stop-pulse {
+  0%, 100% { opacity: 1;   transform: scale(1);    }
+  50%      { opacity: 0.55; transform: scale(0.92); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .helm-anim-spin,
+  .helm-anim-draw-ring,
+  .helm-anim-draw-spoke,
+  .helm-anim-rotate-snap,
+  .helm-anim-letter-in,
+  .helm-anim-blink,
+  .helm-anim-stop-pulse,
+  .helm-anim-pip-pulse { animation: none !important; }
+}
+
+/* ── Convenience utility classes ────────────────────────────────────────────
+   Drop these on any element without writing the animation shorthand yourself.
+   Match the tokens in @/assets/brand/index.ts -> brandMotion.                */
+
+.helm-anim-spin {
+  animation: helm-spin-fast 1.6s linear infinite;
+  transform-origin: 50% 50%;
+}
+
+.helm-anim-spin-slow {
+  animation: helm-spin-fast 24s linear infinite;
+  transform-origin: 50% 50%;
+}
+
+.helm-anim-rotate-snap {
+  animation: helm-rotate-snap 1.2s cubic-bezier(.34, 1.56, .64, 1) both;
+  transform-origin: 50% 50%;
+}
+
+.helm-anim-letter-in {
+  animation: helm-letter-in 0.55s cubic-bezier(.2, .7, .3, 1) forwards;
+}
+
+.helm-anim-blink {
+  animation: helm-blink 1.1s steps(1) infinite;
+}
+
+.helm-anim-stop-pulse {
+  animation: helm-stop-pulse 2.4s ease-in-out infinite;
+}
+
+.helm-anim-pip-pulse {
+  animation: helm-pip-pulse-kf 2.4s ease-in-out infinite;
+  transform-origin: 50% 50%;
+  transform-box: fill-box;
+}

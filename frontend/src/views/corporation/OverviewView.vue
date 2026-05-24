@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useCorporationStore } from '@/stores/corporation'
 import { useI18n } from 'vue-i18n'
 import HelmLoader from '@/components/HelmLoader.vue'
+import CachedImg from '@/components/CachedImg.vue'
 
 const route = useRoute()
 const corpStore = useCorporationStore()
@@ -25,10 +26,9 @@ function fmtDate(dt: string | null) {
 
     <template v-else-if="corpStore.corporationInfo">
       <div class="corp-header">
-        <img
+        <CachedImg
           :src="`https://images.evetech.net/corporations/${corporationId}/logo?size=128`"
           class="corp-logo"
-          alt=""
         />
         <div>
           <h1 class="corp-name h-serif">{{ corpStore.corporationInfo.name }}</h1>

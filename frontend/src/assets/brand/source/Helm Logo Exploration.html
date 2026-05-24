@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Helm — Logo Exploration</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Cormorant+Garamond:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; padding:0; background:#f0eee9; }
+  :root {
+    --parchment: #f5f4ed;
+    --ivory: #faf9f5;
+    --terracotta: #c96442;
+    --coral: #d97757;
+    --near-black: #141413;
+    --dark-surface: #30302e;
+    --charcoal: #4d4c48;
+    --olive: #5e5d59;
+    --stone: #87867f;
+    --warm-silver: #b0aea5;
+    --border-cream: #f0eee6;
+    --border-warm: #e8e6dc;
+    --serif: 'Instrument Serif', 'Cormorant Garamond', Georgia, serif;
+    --serif-tight: 'Cormorant Garamond', Georgia, serif;
+    --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  }
+  .art {
+    width: 100%; height: 100%;
+    background: var(--parchment);
+    display: grid;
+    grid-template-rows: 1fr auto 110px;
+    color: var(--near-black);
+    font-family: var(--sans);
+    overflow: hidden;
+  }
+  .stage {
+    display: flex; align-items: center; justify-content: center;
+    border-bottom: 1px solid var(--border-cream);
+    padding: 24px;
+  }
+  .lockup {
+    display: flex; align-items: center; justify-content: center;
+    gap: 18px;
+    padding: 28px 32px;
+    border-bottom: 1px solid var(--border-cream);
+    background: var(--ivory);
+  }
+  .lockup .wordmark {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 56px;
+    letter-spacing: -0.01em;
+    line-height: 1;
+    color: var(--near-black);
+  }
+  .lockup .wordmark .stop { color: var(--terracotta); }
+  .variants {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    height: 110px;
+  }
+  .variants > div {
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .v-terra { background: var(--terracotta); }
+  .v-dark { background: var(--near-black); }
+  .v-ivory { background: var(--ivory); border-left:1px solid var(--border-cream); border-right:1px solid var(--border-cream); }
+  .v-label {
+    position:absolute; bottom:8px; left:10px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .v-terra .v-label, .v-dark .v-label { color: rgba(255,255,255,0.55); }
+  .v-ivory .v-label { color: var(--stone); }
+
+  .desc {
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.55;
+    color: var(--olive);
+    padding: 14px 20px;
+    border-top: 1px dashed var(--border-warm);
+    background: var(--parchment);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .desc .tag {
+    font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--terracotta);
+  }
+
+  /* Card with description inset */
+  .art.with-desc { grid-template-rows: 1fr auto 110px auto; }
+
+  /* Wordmark-only variant card */
+  .art.word .stage .wordmark-big {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 132px;
+    line-height: 1;
+    letter-spacing: -0.015em;
+    color: var(--near-black);
+  }
+  .art.word .stage .wordmark-big .stop { color: var(--terracotta); }
+
+  /* hero callout strip */
+  .hero {
+    background: var(--near-black);
+    color: var(--warm-silver);
+    padding: 60px;
+    font-family: var(--serif);
+    font-size: 28px;
+    line-height: 1.35;
+    display:flex; gap: 36px; align-items:center;
+    border-radius: 16px;
+  }
+  .hero .h-num {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--coral);
+  }
+  .hero em { font-style: italic; color: #e8e6dc; }
+</style>
+</head>
+<body>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="logos.jsx"></script>
+<script type="text/babel" src="app.jsx"></script>
+
+<div id="root"></div>
+</body>
+</html>

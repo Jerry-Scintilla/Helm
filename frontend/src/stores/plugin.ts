@@ -68,6 +68,18 @@ export const usePluginStore = defineStore('plugin', () => {
     pluginCacheTokens.value = { ...pluginCacheTokens.value, [name]: Date.now() }
   }
 
+  // Ensure a token exists for `name`. If unset (e.g. cold start before any
+  // install/enable event), allocate one now so the iframe URL is unique to
+  // this session — prevents the browser from re-using a stale cached document
+  // left over from a previous session or a previous build of the plugin.
+  function ensureCacheToken(name: string): number {
+    const cur = pluginCacheTokens.value[name]
+    if (cur !== undefined) return cur
+    const t = Date.now()
+    pluginCacheTokens.value = { ...pluginCacheTokens.value, [name]: t }
+    return t
+  }
+
   async function fetchPlugins() {
     const res = await api.get<PluginInfo[]>('/api/v1/admin/plugins/')
     plugins.value = res.data
@@ -198,6 +210,8 @@ export const usePluginStore = defineStore('plugin', () => {
     marketplacePlugins,
     marketplaceLoading,
     marketplaceRefreshing,
+    bumpCacheToken,
+    ensureCacheToken,
     fetchPlugins,
     fetchEnabledPlugins,
     searchMarketplace,

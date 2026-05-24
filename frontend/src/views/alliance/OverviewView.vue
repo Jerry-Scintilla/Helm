@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useAllianceStore } from '@/stores/alliance'
 import { useI18n } from 'vue-i18n'
 import HelmLoader from '@/components/HelmLoader.vue'
+import CachedImg from '@/components/CachedImg.vue'
 
 const route = useRoute()
 const allianceStore = useAllianceStore()
@@ -25,10 +26,9 @@ function fmtDate(dt: string | null) {
 
     <template v-else-if="allianceStore.allianceInfo">
       <div class="alliance-header">
-        <img
+        <CachedImg
           :src="`https://images.evetech.net/alliances/${allianceId}/logo?size=128`"
           class="alliance-logo"
-          alt=""
         />
         <div>
           <h1 class="alliance-name h-serif">{{ allianceStore.allianceInfo.name }}</h1>

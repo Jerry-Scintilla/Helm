@@ -18,6 +18,7 @@ export interface AssetNode {
 const props = defineProps<{
   items: AssetNode[]
   depth?: number
+  highlight?: string
 }>()
 
 const openSet = ref<Set<number>>(new Set())
@@ -34,6 +35,25 @@ function countAll(nodes: AssetNode[]): number {
   return nodes.reduce((n, node) => n + 1 + countAll(node.items), 0)
 }
 
+/** 跨所有语言匹配节点自身的类型名（与后端搜索一致）。 */
+function selfMatches(node: AssetNode): boolean {
+  const q = (props.highlight ?? '').trim().toLowerCase()
+  if (!q || !node.type_name) return false
+  return Object.values(node.type_name).some((v) => !!v && v.toLowerCase().includes(q))
+}
+
+/** 节点自身或任意子项命中。 */
+function subtreeMatches(node: AssetNode): boolean {
+  return selfMatches(node) || node.items.some(subtreeMatches)
+}
+
+/** 容器是否应展开：用户手动展开，或搜索命中其内部资产时自动展开。 */
+function isOpen(node: AssetNode): boolean {
+  if (openSet.value.has(node.item_id)) return true
+  const q = (props.highlight ?? '').trim()
+  return !!q && node.items.some(subtreeMatches)
+}
+
 const depth = props.depth ?? 0
 </script>
 
@@ -45,7 +65,7 @@ const depth = props.depth ?? 0
       <template v-if="node.items.length > 0">
         <div
           class="asset-row container-row"
-          :class="`indent-${Math.min(depth, 4)}`"
+          :class="[`indent-${Math.min(depth, 4)}`, { matched: selfMatches(node) }]"
           @click="toggle(node.item_id)"
         >
           <span class="container-name">
@@ -54,16 +74,16 @@ const depth = props.depth ?? 0
           </span>
           <span class="container-meta">
             <span class="container-count">{{ countAll(node.items) }} 项</span>
-            <span class="container-arrow" :class="{ open: openSet.has(node.item_id) }">›</span>
+            <span class="container-arrow" :class="{ open: isOpen(node) }">›</span>
           </span>
         </div>
-        <div v-if="openSet.has(node.item_id)" class="children">
-          <AssetItemGroup :items="node.items" :depth="depth + 1" />
+        <div v-if="isOpen(node)" class="children">
+          <AssetItemGroup :items="node.items" :depth="depth + 1" :highlight="highlight" />
         </div>
       </template>
 
       <!-- Leaf item -->
-      <div v-else class="asset-row" :class="`indent-${Math.min(depth, 4)}`">
+      <div v-else class="asset-row" :class="[`indent-${Math.min(depth, 4)}`, { matched: selfMatches(node) }]">
         <span class="type-name">
           <CachedImg v-if="node.icon_url" :src="node.icon_url" class="type-icon" :width="24" :height="24" />
           {{ resolveSdeName(node.type_name, String(node.type_id)) }}
@@ -89,6 +109,12 @@ const depth = props.depth ?? 0
   font-size: 0.85rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   align-items: center;
+}
+
+/* Search hit: subtle coral tint + left marker */
+.asset-row.matched {
+  background: rgba(217, 119, 87, 0.1);
+  box-shadow: inset 2px 0 0 #d97757;
 }
 
 /* Leaf indentation for nested levels */

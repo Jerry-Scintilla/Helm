@@ -367,9 +367,9 @@
     }
   },
   "assets": {
-    "searchPlaceholder": "Search solar system, station or structure…",
+    "searchPlaceholder": "Search location or asset (e.g. Warp Disruptor II)…",
     "locationCount": "{n} locations",
-    "noMatch": "No matching locations",
+    "noMatch": "No matching locations or assets",
     "noData": "No asset data",
     "items": "items",
     "unknownLocation": "Unknown Location",

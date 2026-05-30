@@ -24,6 +24,7 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
 const searchQuery = ref('')
+const expandedNames = ref<(number | string)[]>([])
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 function countAll(nodes: AssetNode[]): number {
@@ -40,6 +41,10 @@ async function load() {
     })
     locations.value = res.data.locations
     total.value = res.data.total
+    // 搜索时自动展开所有命中的地点，让匹配的资产直接可见
+    expandedNames.value = searchQuery.value.trim()
+      ? locations.value.map((loc) => loc.location_id ?? 'unknown')
+      : []
   } finally {
     loading.value = false
   }
@@ -93,7 +98,7 @@ function locationTypeLabel(type: string): string {
     </div>
 
     <div v-else>
-      <n-collapse class="location-list" arrow-placement="right">
+      <n-collapse v-model:expanded-names="expandedNames" class="location-list" arrow-placement="right">
         <n-collapse-item
           v-for="loc in locations"
           :key="loc.location_id ?? 'unknown'"
@@ -113,7 +118,7 @@ function locationTypeLabel(type: string): string {
             <span>{{ t('common.item') }}</span>
             <span style="text-align:right">{{ t('common.quantity') }}</span>
           </div>
-          <AssetItemGroup :items="loc.items" :depth="0" />
+          <AssetItemGroup :items="loc.items" :depth="0" :highlight="searchQuery" />
         </n-collapse-item>
       </n-collapse>
 

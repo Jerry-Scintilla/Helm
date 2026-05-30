@@ -409,14 +409,32 @@ async def get_assets(
                 "items": children,
             })
 
-    # 按地点名称过滤
+    # 按地点名称或资产内容过滤
     if q:
         q_lower = q.strip().lower()
-        result_tree = [
-            loc for loc in result_tree
-            if q_lower in (loc["location_name"] or "").lower()
-            or q_lower in str(loc["location_id"])
-        ]
+
+        def type_name_matches(type_name) -> bool:
+            """type_name 为全语言字典 {"en": ..., "zh": ...}，任一语言命中即可。"""
+            if not type_name:
+                return False
+            if isinstance(type_name, dict):
+                return any(q_lower in str(v).lower() for v in type_name.values() if v)
+            return q_lower in str(type_name).lower()
+
+        def node_matches(node: dict) -> bool:
+            """递归判断节点自身或其任意子项是否命中。"""
+            if type_name_matches(node.get("type_name")):
+                return True
+            return any(node_matches(child) for child in node.get("items", []))
+
+        def location_matches(loc: dict) -> bool:
+            if q_lower in (loc["location_name"] or "").lower():
+                return True
+            if q_lower in str(loc["location_id"]):
+                return True
+            return any(node_matches(item) for item in loc["items"])
+
+        result_tree = [loc for loc in result_tree if location_matches(loc)]
 
     total = len(result_tree)
     start = (page - 1) * page_size

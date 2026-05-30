@@ -367,9 +367,9 @@
     }
   },
   "assets": {
-    "searchPlaceholder": "搜索星系、空间站或玩家建筑…",
+    "searchPlaceholder": "搜索地点或资产（如 跃迁扰断器 II）…",
     "locationCount": "共 {n} 个地点",
-    "noMatch": "未找到匹配的地点",
+    "noMatch": "未找到匹配的地点或资产",
     "noData": "暂无资产数据",
     "items": "项",
     "unknownLocation": "未知位置",

@@ -111,6 +111,124 @@ export interface MailLinkItem {
   icon_url: string | null
 }
 
+export interface ContractItem {
+  type_id: number | null
+  type_name: string
+  quantity: number | null
+  is_included: boolean
+  is_singleton: boolean
+  icon_url: string | null
+}
+
+export interface ContractBid {
+  bid_id: number
+  amount: number
+  bidder_id: number
+  date_bid: string
+}
+
+export interface Contract {
+  contract_id: number
+  source: 'character' | 'corporation'
+  type: string
+  status: string
+  title: string
+  for_corporation: boolean
+  availability: string | null
+  issuer_id: number | null
+  assignee_id: number | null
+  acceptor_id: number | null
+  start_location_id: number | null
+  end_location_id: number | null
+  issuer_name?: string | null
+  assignee_name?: string | null
+  acceptor_name?: string | null
+  start_location_name?: string | null
+  end_location_name?: string | null
+  price: number | null
+  reward: number | null
+  collateral: number | null
+  buyout: number | null
+  volume: number | null
+  days_to_complete: number | null
+  date_issued: string | null
+  date_expired: string | null
+  date_accepted: string | null
+  date_completed: string | null
+}
+
+export interface ContractDetail extends Contract {
+  items: ContractItem[]
+  bids: ContractBid[]
+}
+
+export interface ContractListResult {
+  total: number
+  page: number
+  per_page: number
+  items: Contract[]
+}
+
+export interface Killmail {
+  killmail_id: number
+  is_loss: boolean
+  ship_type_id: number | null
+  ship_icon: string | null
+  ship_name?: string | null
+  solar_system_id: number | null
+  solar_system_name?: string | null
+  killmail_time: string | null
+  attacker_count: number
+  total_value: number | null
+}
+
+export interface KillmailListResult {
+  total: number
+  page: number
+  per_page: number
+  items: Killmail[]
+}
+
+export interface KillmailItem {
+  type_id: number | null
+  type_name: string
+  icon_url: string | null
+  dropped: number
+  destroyed: number
+}
+
+export interface KillmailAttacker {
+  character_name: string | null
+  corporation_name: string | null
+  alliance_name: string | null
+  ship_type_id: number | null
+  ship_name: string | null
+  ship_icon: string | null
+  weapon_name: string | null
+  damage_done: number
+  final_blow: boolean
+  security_status: number | null
+}
+
+export interface KillmailDetail {
+  killmail_id: number
+  killmail_time: string | null
+  solar_system_id: number | null
+  solar_system_name: string | null
+  total_value: number | null
+  victim: {
+    character_name: string | null
+    corporation_name: string | null
+    alliance_name: string | null
+    ship_type_id: number | null
+    ship_name: string | null
+    ship_render: string | null
+    damage_taken: number
+    items: KillmailItem[]
+  }
+  attackers: KillmailAttacker[]
+}
+
 export interface MailLinkResult {
   kind: 'type' | 'item' | 'structure' | 'station' | 'entity' | 'contract' | 'unsupported' | 'unknown'
   title: string
@@ -201,6 +319,45 @@ export const useCharacterStore = defineStore('character', () => {
     selectedMail.value = res.data
   }
 
+  async function fetchContracts(
+    characterId: number,
+    opts: { direction?: string; contractType?: string | null; status?: string | null; page?: number } = {},
+  ) {
+    const params: Record<string, unknown> = {
+      direction: opts.direction ?? 'all',
+      page: opts.page ?? 1,
+      per_page: 20,
+    }
+    if (opts.contractType) params.contract_type = opts.contractType
+    if (opts.status) params.status = opts.status
+    const res = await api.get(`/api/v1/characters/${characterId}/contracts`, { params })
+    return res.data as ContractListResult
+  }
+
+  async function fetchContractDetail(characterId: number, contractId: number, locale: string) {
+    const res = await api.get(`/api/v1/characters/${characterId}/contracts/${contractId}`, {
+      params: { locale },
+    })
+    return res.data as ContractDetail
+  }
+
+  async function fetchKillmails(
+    characterId: number,
+    opts: { filter?: string; page?: number } = {},
+  ) {
+    const res = await api.get(`/api/v1/characters/${characterId}/killmails`, {
+      params: { filter: opts.filter ?? 'all', page: opts.page ?? 1, per_page: 20 },
+    })
+    return res.data as KillmailListResult
+  }
+
+  async function fetchKillmailDetail(characterId: number, killmailId: number, locale: string) {
+    const res = await api.get(`/api/v1/characters/${characterId}/killmails/${killmailId}`, {
+      params: { locale },
+    })
+    return res.data as KillmailDetail
+  }
+
   async function resolveMailLink(characterId: number, ref: string, locale: string) {
     const res = await api.get(`/api/v1/characters/${characterId}/mail/resolve-link`, {
       params: { ref, locale },
@@ -227,6 +384,8 @@ export const useCharacterStore = defineStore('character', () => {
     mails, selectedMail, notifications, notificationTotal,
     loading, error,
     fetchAll, fetchWalletJournal, fetchWalletTransactions, refreshWallet,
-    fetchSkillQueue, fetchMails, fetchMailBody, resolveMailLink, fetchNotifications,
+    fetchSkillQueue, fetchMails, fetchMailBody, resolveMailLink,
+    fetchContracts, fetchContractDetail,
+    fetchKillmails, fetchKillmailDetail, fetchNotifications,
   }
 })

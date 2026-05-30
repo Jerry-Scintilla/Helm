@@ -140,6 +140,70 @@ class CharacterNotification(Base):
     character: Mapped["Character"] = relationship("Character", back_populates="notifications")
 
 
+class CharacterContract(Base):
+    """A contract the character (or their corp) is issuer/acceptor/assignee of.
+
+    ESI only returns contracts no older than 30 days, or any still in_progress.
+    Contract *items* and *bids* are fetched lazily on detail view, not stored here.
+    """
+    __tablename__ = "character_contracts"
+    __table_args__ = (UniqueConstraint("character_id", "contract_id", name="uq_char_contract"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    character_id: Mapped[int] = mapped_column(Integer, ForeignKey("characters.id", ondelete="CASCADE"), nullable=False, index=True)
+    contract_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="character")  # character | corporation
+    type: Mapped[str] = mapped_column(String(32), nullable=False, default="unknown")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    issuer_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    issuer_corporation_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    assignee_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    acceptor_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    start_location_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    end_location_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    for_corporation: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    availability: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    title: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    reward: Mapped[float | None] = mapped_column(Float, nullable=True)
+    collateral: Mapped[float | None] = mapped_column(Float, nullable=True)
+    buyout: Mapped[float | None] = mapped_column(Float, nullable=True)
+    volume: Mapped[float | None] = mapped_column(Float, nullable=True)
+    days_to_complete: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    date_issued: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    date_expired: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    date_accepted: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    date_completed: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    character: Mapped["Character"] = relationship("Character", back_populates="contracts")
+
+
+class CharacterKillmail(Base):
+    """Summary of a killmail the character was a victim or attacker in.
+
+    ESI /characters/{id}/killmails/recent covers the last 90 days. The full
+    killmail (attackers/items) is immutable and fetched lazily on detail view;
+    only the summary needed for the list is stored here.
+    """
+    __tablename__ = "character_killmails"
+    __table_args__ = (UniqueConstraint("character_id", "killmail_id", name="uq_char_killmail"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    character_id: Mapped[int] = mapped_column(Integer, ForeignKey("characters.id", ondelete="CASCADE"), nullable=False, index=True)
+    killmail_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    killmail_hash: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    is_loss: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    ship_type_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    solar_system_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    killmail_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    attacker_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    character: Mapped["Character"] = relationship("Character", back_populates="killmails")
+
+
 class PlayerStructure(Base):
     """Cache for player-owned Upwell structure names resolved via ESI."""
     __tablename__ = "player_structures"

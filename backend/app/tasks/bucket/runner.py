@@ -23,12 +23,15 @@ async def _refresh_character(char: Character) -> None:
     from app.tasks.characters.wallet_transactions import _update_wallet_transactions  # noqa: PLC0415
     from app.tasks.characters.skill_queue import _update_skill_queue  # noqa: PLC0415
     from app.tasks.characters.notifications import _update_notifications  # noqa: PLC0415
+    from app.tasks.characters.contracts import _update_contracts  # noqa: PLC0415
+    from app.tasks.characters.killmails import _update_killmails  # noqa: PLC0415
 
     for fn in [
         _update_wallet, _update_skills, _update_assets,
         _update_mail, _fetch_all_empty_bodies,
         _update_wallet_journal, _update_wallet_transactions,
-        _update_skill_queue, _update_notifications,
+        _update_skill_queue, _update_notifications, _update_contracts,
+        _update_killmails,
     ]:
         try:
             await fn(char)

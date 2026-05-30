@@ -104,6 +104,29 @@ async def _fetch_price_from_esi(region_id: int, type_id: int) -> MarketPrice:
     )
 
 
+async def get_average_prices() -> dict[int, float]:
+    """Return {type_id: average_price} from ESI /markets/prices/ (global, public).
+
+    This single endpoint covers every published type and is the standard basis
+    for killmail valuation. The underlying ESI client caches the HTTP payload
+    (stale-while-revalidate), so repeated calls are cheap.
+    """
+    esi = get_esi_client()
+    try:
+        data = await esi.get("/markets/prices/")
+    except Exception:
+        logger.exception("ESI /markets/prices/ fetch failed")
+        return {}
+    out: dict[int, float] = {}
+    if isinstance(data, list):
+        for row in data:
+            tid = row.get("type_id")
+            price = row.get("average_price") or row.get("adjusted_price")
+            if tid and price:
+                out[tid] = price
+    return out
+
+
 async def get_market_prices(
     type_ids: list[int],
     region_id: int | None = None,

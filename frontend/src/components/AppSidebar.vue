@@ -63,6 +63,8 @@ const menuOptions = computed<MenuOption[]>(() => {
         { label: t('nav.skills'), key: `/character/${cid}/skills`, icon: icon('·') },
         { label: t('nav.assets'), key: `/character/${cid}/assets`, icon: icon('·') },
         { label: t('nav.mail'), key: `/character/${cid}/mail`, icon: icon('·') },
+        { label: t('nav.contracts'), key: `/character/${cid}/contracts`, icon: icon('·') },
+        { label: t('nav.killboard'), key: `/character/${cid}/killboard`, icon: icon('·') },
         { label: t('nav.notifications'), key: `/character/${cid}/notifications`, icon: icon('·') },
         ...submoduleItems,
       ],

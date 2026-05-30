@@ -104,6 +104,7 @@ CORE_SCOPES = [
     "esi-universe.read_structures.v1",
     "esi-contracts.read_character_contracts.v1",
     "esi-contracts.read_corporation_contracts.v1",
+    "esi-killmails.read_killmails.v1",
 ]
 
 

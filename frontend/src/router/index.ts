@@ -63,6 +63,16 @@ const router = createRouter({
           component: () => import('@/views/character/MailView.vue'),
         },
         {
+          path: 'character/:id/contracts',
+          name: 'character-contracts',
+          component: () => import('@/views/character/ContractsView.vue'),
+        },
+        {
+          path: 'character/:id/killboard',
+          name: 'character-killboard',
+          component: () => import('@/views/character/KillboardView.vue'),
+        },
+        {
           path: 'character/:id/notifications',
           name: 'character-notifications',
           component: () => import('@/views/character/NotificationsView.vue'),

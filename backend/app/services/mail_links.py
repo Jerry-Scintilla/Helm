@@ -24,6 +24,10 @@ from app.cache import logical_get, logical_set, try_acquire_lock
 from app.esi.client import get_esi_client
 from app.models.character import Character
 from app.models.sde import SDEType
+from app.services.contracts import (
+    CONTRACT_STATUS_LABELS as _CONTRACT_STATUS_LABELS,
+    CONTRACT_TYPE_LABELS as _CONTRACT_TYPE_LABELS,
+)
 from app.services.esi_names import resolve_entity_names
 from app.services.sde import resolve_type_names
 
@@ -58,25 +62,6 @@ def _clean_desc(text: str | None) -> str | None:
     return text.strip() or None
 
 
-_CONTRACT_TYPE_LABELS = {
-    "item_exchange": "物品交换",
-    "auction": "拍卖",
-    "courier": "快递",
-    "loan": "贷款",
-    "unknown": "未知",
-}
-_CONTRACT_STATUS_LABELS = {
-    "outstanding": "未完成",
-    "in_progress": "进行中",
-    "finished_issuer": "已完成（发起方）",
-    "finished_contractor": "已完成（承接方）",
-    "finished": "已完成",
-    "cancelled": "已取消",
-    "rejected": "已拒绝",
-    "failed": "已失败",
-    "deleted": "已删除",
-    "reversed": "已撤销",
-}
 
 
 def _parse_ref(ref: str) -> tuple[str, list[str]]:

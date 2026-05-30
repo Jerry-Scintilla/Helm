@@ -38,9 +38,11 @@ class Character(Base):
     wallet_transactions: Mapped[list["CharacterWalletTransaction"]] = relationship("CharacterWalletTransaction", back_populates="character", cascade="all, delete-orphan")
     skill_queue: Mapped[list["CharacterSkillQueue"]] = relationship("CharacterSkillQueue", back_populates="character", cascade="all, delete-orphan")
     notifications: Mapped[list["CharacterNotification"]] = relationship("CharacterNotification", back_populates="character", cascade="all, delete-orphan")
+    contracts: Mapped[list["CharacterContract"]] = relationship("CharacterContract", back_populates="character", cascade="all, delete-orphan")
+    killmails: Mapped[list["CharacterKillmail"]] = relationship("CharacterKillmail", back_populates="character", cascade="all, delete-orphan")
     bucket_token: Mapped["BucketToken | None"] = relationship("BucketToken", back_populates="character", uselist=False)
 
 
 from app.models.user import User  # noqa: E402, F401
-from app.models.esi_data import CharacterWallet, CharacterSkill, CharacterAsset, CharacterMail, CharacterWalletJournal, CharacterWalletTransaction, CharacterSkillQueue, CharacterNotification  # noqa: E402, F401
+from app.models.esi_data import CharacterWallet, CharacterSkill, CharacterAsset, CharacterMail, CharacterWalletJournal, CharacterWalletTransaction, CharacterSkillQueue, CharacterNotification, CharacterContract, CharacterKillmail  # noqa: E402, F401
 from app.models.bucket import BucketToken  # noqa: E402, F401

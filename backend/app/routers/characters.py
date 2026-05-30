@@ -12,7 +12,7 @@ from app.models.character import Character
 from app.models.esi_data import (
     CharacterAsset, CharacterMail, CharacterSkill, CharacterWallet,
     CharacterWalletJournal, CharacterWalletTransaction, CharacterSkillQueue, CharacterNotification,
-    PlayerStructure,
+    CharacterContract, CharacterKillmail, PlayerStructure,
 )
 from app.models.user import User
 from app.services.esi_names import enrich_entity_names, resolve_entity_names
@@ -723,6 +723,279 @@ async def get_notifications(
         )
 
     return {"items": notif_rows, "total": total, "page": page, "page_size": page_size}
+
+
+def _serialize_contract(c: CharacterContract) -> dict:
+    return {
+        "contract_id": c.contract_id,
+        "source": c.source,
+        "type": c.type,
+        "status": c.status,
+        "title": c.title,
+        "for_corporation": c.for_corporation,
+        "availability": c.availability,
+        "issuer_id": c.issuer_id,
+        "assignee_id": c.assignee_id,
+        "acceptor_id": c.acceptor_id,
+        "start_location_id": c.start_location_id,
+        "end_location_id": c.end_location_id,
+        "price": c.price,
+        "reward": c.reward,
+        "collateral": c.collateral,
+        "buyout": c.buyout,
+        "volume": c.volume,
+        "days_to_complete": c.days_to_complete,
+        "date_issued": c.date_issued,
+        "date_expired": c.date_expired,
+        "date_accepted": c.date_accepted,
+        "date_completed": c.date_completed,
+    }
+
+
+CONTRACT_LIST_TTL = 600  # 10 min logical expiration
+
+
+@router.get("/{character_id}/contracts")
+async def get_contracts(
+    character_id: int,
+    direction: str = Query("all", description="all | outgoing | incoming"),
+    contract_type: str | None = Query(None),
+    status: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("character.view")),
+):
+    from app.cache import logical_get, logical_set, try_acquire_lock
+
+    char = await _get_character_for_user(character_id, current_user, db)
+    cache_key = f"contracts:list:{char.id}:{direction}:{contract_type}:{status}:{page}:{per_page}"
+    lock_key = f"contracts-refresh:{char.id}"
+
+    data, is_stale = await logical_get(cache_key)
+    if data is not None:
+        if is_stale and await try_acquire_lock(lock_key):
+            asyncio.create_task(asyncio.to_thread(
+                celery_app.send_task,
+                "app.tasks.characters.contracts.update_contracts",
+                args=[char.id], queue="characters",
+            ))
+        return data
+
+    conditions = [CharacterContract.character_id == char.id]
+    if direction == "outgoing":
+        conditions.append(CharacterContract.issuer_id == char.character_id)
+    elif direction == "incoming":
+        conditions.append(CharacterContract.issuer_id != char.character_id)
+    if contract_type:
+        conditions.append(CharacterContract.type == contract_type)
+    if status:
+        conditions.append(CharacterContract.status == status)
+
+    total = (await db.execute(
+        select(func.count()).select_from(CharacterContract).where(*conditions)
+    )).scalar_one()
+
+    rows = (await db.execute(
+        select(CharacterContract)
+        .where(*conditions)
+        .order_by(CharacterContract.date_issued.desc().nullslast())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )).scalars().all()
+
+    # First-ever load: queue a sync so data appears on the next poll.
+    if total == 0 and page == 1 and await try_acquire_lock(lock_key):
+        asyncio.create_task(asyncio.to_thread(
+            celery_app.send_task,
+            "app.tasks.characters.contracts.update_contracts",
+            args=[char.id], queue="characters",
+        ))
+
+    items = [_serialize_contract(c) for c in rows]
+
+    # Resolve party + location names (stations/systems via ESI; structures stay as ids).
+    name_ids: list[int] = []
+    for it in items:
+        name_ids += [it["issuer_id"], it["assignee_id"], it["acceptor_id"],
+                     it["start_location_id"], it["end_location_id"]]
+    name_map = await resolve_entity_names(name_ids) if name_ids else {}
+
+    def _nm(i: int | None) -> str | None:
+        return name_map.get(i, {}).get("name") if i else None
+
+    for it in items:
+        it["issuer_name"] = _nm(it["issuer_id"])
+        it["assignee_name"] = _nm(it["assignee_id"])
+        it["acceptor_name"] = _nm(it["acceptor_id"])
+        it["start_location_name"] = _nm(it["start_location_id"])
+        it["end_location_name"] = _nm(it["end_location_id"])
+
+    payload = {"total": total, "page": page, "per_page": per_page, "items": items}
+    await logical_set(cache_key, payload, CONTRACT_LIST_TTL)
+    return payload
+
+
+@router.get("/{character_id}/contracts/{contract_id}")
+async def get_contract_detail(
+    character_id: int,
+    contract_id: int,
+    locale: str = Query("en"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("character.view")),
+):
+    from app.cache import logical_get, logical_set
+    from app.services.contracts import fetch_contract_bids, fetch_contract_items
+
+    char = await _get_character_for_user(character_id, current_user, db)
+    contract = (await db.execute(
+        select(CharacterContract).where(
+            CharacterContract.character_id == char.id,
+            CharacterContract.contract_id == contract_id,
+        )
+    )).scalar_one_or_none()
+    if contract is None:
+        raise HTTPException(status_code=404, detail="Contract not found")
+
+    base = _serialize_contract(contract)
+    name_ids = [base["issuer_id"], base["assignee_id"], base["acceptor_id"],
+                base["start_location_id"], base["end_location_id"]]
+    name_map = await resolve_entity_names([i for i in name_ids if i])
+    for key in ("issuer", "assignee", "acceptor", "start_location", "end_location"):
+        eid = base[f"{key}_id"]
+        base[f"{key}_name"] = name_map.get(eid, {}).get("name") if eid else None
+
+    # Items/bids are immutable once the contract exists → lazy fetch + logical cache.
+    cache_key = f"contracts:detail:{char.id}:{contract_id}:{locale}"
+    cached, is_stale = await logical_get(cache_key)
+    if cached is not None and not is_stale:
+        base["items"] = cached.get("items", [])
+        base["bids"] = cached.get("bids", [])
+        return base
+
+    items = await fetch_contract_items(char, contract_id, contract.source, db, locale=locale)
+    bids = await fetch_contract_bids(char, contract_id, contract.source) if contract.type == "auction" else []
+    await logical_set(cache_key, {"items": items, "bids": bids}, 86400)
+    base["items"] = items
+    base["bids"] = bids
+    return base
+
+
+KILLMAIL_LIST_TTL = 600  # 10 min logical expiration
+
+
+@router.get("/{character_id}/killmails")
+async def get_killmails(
+    character_id: int,
+    filter: str = Query("all", description="all | kills | losses"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("character.view")),
+):
+    from app.cache import logical_get, logical_set, try_acquire_lock
+
+    char = await _get_character_for_user(character_id, current_user, db)
+    cache_key = f"killmails:list:{char.id}:{filter}:{page}:{per_page}"
+    lock_key = f"killmails-refresh:{char.id}"
+
+    data, is_stale = await logical_get(cache_key)
+    if data is not None:
+        if is_stale and await try_acquire_lock(lock_key):
+            asyncio.create_task(asyncio.to_thread(
+                celery_app.send_task,
+                "app.tasks.characters.killmails.update_killmails",
+                args=[char.id], queue="characters",
+            ))
+        return data
+
+    conditions = [CharacterKillmail.character_id == char.id]
+    if filter == "kills":
+        conditions.append(CharacterKillmail.is_loss == False)  # noqa: E712
+    elif filter == "losses":
+        conditions.append(CharacterKillmail.is_loss == True)  # noqa: E712
+
+    total = (await db.execute(
+        select(func.count()).select_from(CharacterKillmail).where(*conditions)
+    )).scalar_one()
+
+    rows = (await db.execute(
+        select(CharacterKillmail)
+        .where(*conditions)
+        .order_by(CharacterKillmail.killmail_time.desc().nullslast())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )).scalars().all()
+
+    if total == 0 and page == 1 and await try_acquire_lock(lock_key):
+        asyncio.create_task(asyncio.to_thread(
+            celery_app.send_task,
+            "app.tasks.characters.killmails.update_killmails",
+            args=[char.id], queue="characters",
+        ))
+
+    items = [
+        {
+            "killmail_id": k.killmail_id,
+            "is_loss": k.is_loss,
+            "ship_type_id": k.ship_type_id,
+            "ship_icon": f"https://images.evetech.net/types/{k.ship_type_id}/icon?size=64" if k.ship_type_id else None,
+            "solar_system_id": k.solar_system_id,
+            "killmail_time": k.killmail_time,
+            "attacker_count": k.attacker_count,
+            "total_value": k.total_value,
+        }
+        for k in rows
+    ]
+
+    ship_ids = [it["ship_type_id"] for it in items if it["ship_type_id"]]
+    sys_ids = [it["solar_system_id"] for it in items if it["solar_system_id"]]
+    ship_names = await resolve_type_names(ship_ids, db, locale="en") if ship_ids else {}
+    sys_map = await resolve_entity_names(sys_ids) if sys_ids else {}
+    for it in items:
+        it["ship_name"] = ship_names.get(it["ship_type_id"])
+        it["solar_system_name"] = sys_map.get(it["solar_system_id"], {}).get("name") if it["solar_system_id"] else None
+
+    payload = {"total": total, "page": page, "per_page": per_page, "items": items}
+    await logical_set(cache_key, payload, KILLMAIL_LIST_TTL)
+    return payload
+
+
+@router.get("/{character_id}/killmails/{killmail_id}")
+async def get_killmail_detail(
+    character_id: int,
+    killmail_id: int,
+    locale: str = Query("en"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("character.view")),
+):
+    from app.cache import logical_get, logical_set
+    from app.esi.client import get_esi_client
+    from app.services.killmails import format_detail
+
+    char = await _get_character_for_user(character_id, current_user, db)
+    row = (await db.execute(
+        select(CharacterKillmail).where(
+            CharacterKillmail.character_id == char.id,
+            CharacterKillmail.killmail_id == killmail_id,
+        )
+    )).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Killmail not found")
+
+    # Killmails are immutable → cache the formatted detail aggressively.
+    cache_key = f"killmails:detail:{killmail_id}:{locale}"
+    cached, is_stale = await logical_get(cache_key)
+    if cached is not None and not is_stale:
+        return cached
+
+    esi = get_esi_client()
+    km = await esi.get(f"/killmails/{killmail_id}/{row.killmail_hash}/")
+    if not isinstance(km, dict):
+        raise HTTPException(status_code=502, detail="Failed to load killmail from ESI")
+    detail = await format_detail(km, db, locale=locale)
+    await logical_set(cache_key, detail, 604800)  # 7 days
+    return detail
 
 
 @router.post("/{character_id}/set-primary")

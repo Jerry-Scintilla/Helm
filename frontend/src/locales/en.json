@@ -469,7 +469,9 @@
     "noSubject": "(No Subject)",
     "empty": "No mail",
     "from": "From",
-    "clickToRead": "← Click a mail on the left to read"
+    "clickToRead": "← Click a mail on the left to read",
+    "linkError": "Failed to load details",
+    "contractItems": "Items"
   },
   "notif": {
     "empty": "No notifications",

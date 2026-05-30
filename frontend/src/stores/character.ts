@@ -98,6 +98,30 @@ export interface MailDetail extends MailItem {
   body: string
 }
 
+export interface MailLinkField {
+  label: string
+  value: string
+}
+
+export interface MailLinkItem {
+  type_id: number | null
+  type_name: string
+  quantity: number | null
+  is_included: boolean
+  icon_url: string | null
+}
+
+export interface MailLinkResult {
+  kind: 'type' | 'item' | 'structure' | 'station' | 'entity' | 'contract' | 'unsupported' | 'unknown'
+  title: string
+  subtitle: string | null
+  icon_url: string | null
+  description: string | null
+  error: string | null
+  fields: MailLinkField[]
+  items: MailLinkItem[]
+}
+
 export interface Notification {
   notification_id: number
   type: string
@@ -177,6 +201,13 @@ export const useCharacterStore = defineStore('character', () => {
     selectedMail.value = res.data
   }
 
+  async function resolveMailLink(characterId: number, ref: string, locale: string) {
+    const res = await api.get(`/api/v1/characters/${characterId}/mail/resolve-link`, {
+      params: { ref, locale },
+    })
+    return res.data as MailLinkResult
+  }
+
   async function fetchNotifications(
     characterId: number,
     page = 1,
@@ -196,6 +227,6 @@ export const useCharacterStore = defineStore('character', () => {
     mails, selectedMail, notifications, notificationTotal,
     loading, error,
     fetchAll, fetchWalletJournal, fetchWalletTransactions, refreshWallet,
-    fetchSkillQueue, fetchMails, fetchMailBody, fetchNotifications,
+    fetchSkillQueue, fetchMails, fetchMailBody, resolveMailLink, fetchNotifications,
   }
 })

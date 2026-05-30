@@ -469,7 +469,9 @@
     "noSubject": "(无标题)",
     "empty": "暂无邮件",
     "from": "发件人",
-    "clickToRead": "← 点击左侧邮件查看内容"
+    "clickToRead": "← 点击左侧邮件查看内容",
+    "linkError": "加载详情失败",
+    "contractItems": "物品列表"
   },
   "notif": {
     "empty": "暂无通知",

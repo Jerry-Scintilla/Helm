@@ -29,6 +29,19 @@ _token_persist_callbacks: list = []
 # use the new token without re-querying the database.
 _refreshed_token_cache: dict[int, str] = {}
 
+# Per-character refresh locks: serialize concurrent token refreshes so two
+# requests that 401 at the same time don't both hit EVE SSO with the *same* old
+# refresh token (which rotates on use, breaking the second request's token).
+_refresh_locks: dict[int, asyncio.Lock] = {}
+
+
+def _get_refresh_lock(character_id: int) -> asyncio.Lock:
+    lock = _refresh_locks.get(character_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _refresh_locks[character_id] = lock
+    return lock
+
 
 def register_token_persist(callback) -> None:
     _token_persist_callbacks.append(callback)
@@ -345,19 +358,28 @@ class ESIClient:
                 return cached_data, None, headers.get("If-None-Match"), 1
 
             if resp.status_code == 401 and refresh_token and character_id:
-                try:
-                    new_tokens = await refresh_access_token(refresh_token)
-                    new_access = new_tokens["access_token"]
-                    new_refresh = new_tokens.get("refresh_token", refresh_token)
-                    headers["Authorization"] = f"Bearer {new_access}"
-                    refresh_token = new_refresh
-                    # Update process-local cache so subsequent calls in this task skip 401
-                    _refreshed_token_cache[character_id] = new_access
-                    for cb in _token_persist_callbacks:
-                        await cb(character_id, new_access, new_refresh)
-                    continue
-                except Exception:
-                    break
+                used_token = headers.get("Authorization", "").removeprefix("Bearer ")
+                async with _get_refresh_lock(character_id):
+                    # A concurrent request may have already refreshed while we
+                    # waited for the lock — reuse its token instead of rotating again.
+                    cached = _refreshed_token_cache.get(character_id)
+                    if cached and cached != used_token:
+                        headers["Authorization"] = f"Bearer {cached}"
+                    else:
+                        try:
+                            new_tokens = await refresh_access_token(refresh_token)
+                        except Exception:
+                            break
+                        new_access = new_tokens["access_token"]
+                        new_refresh = new_tokens.get("refresh_token", refresh_token)
+                        expires_in = new_tokens.get("expires_in")
+                        headers["Authorization"] = f"Bearer {new_access}"
+                        refresh_token = new_refresh
+                        # Update process-local cache so subsequent calls skip 401
+                        _refreshed_token_cache[character_id] = new_access
+                        for cb in _token_persist_callbacks:
+                            await cb(character_id, new_access, new_refresh, expires_in)
+                continue
 
             if resp.status_code in (502, 503, 504):
                 await asyncio.sleep(delay)

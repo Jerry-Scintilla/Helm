@@ -454,6 +454,20 @@ async def get_mail(
     return mail_rows
 
 
+@router.get("/{character_id}/mail/resolve-link")
+async def resolve_mail_link_endpoint(
+    character_id: int,
+    ref: str = Query(..., description="邮件正文链接引用，如 showinfo:47408//1042436073304 或 contract:30000142//232254516"),
+    locale: str = Query("en", description="名称本地化语言"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("character.view")),
+):
+    """解析邮件正文中的 showinfo:/contract: 超链接为详细数据（带 Redis 逻辑过期缓存）。"""
+    char = await _get_character_for_user(character_id, current_user, db)
+    from app.services.mail_links import resolve_mail_link
+    return await resolve_mail_link(ref, char, db, locale=locale)
+
+
 @router.get("/{character_id}/mail/{mail_id}")
 async def get_mail_detail(
     character_id: int,

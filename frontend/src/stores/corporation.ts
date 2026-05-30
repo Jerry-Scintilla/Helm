@@ -61,6 +61,7 @@ export const useCorporationStore = defineStore('corporation', () => {
   const wallets = ref<CorporationWallet[]>([])
   const walletJournal = ref<CorporationJournalEntry[]>([])
   const assets = ref<CorporationAsset[]>([])
+  const assetsTotal = ref(0)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -105,13 +106,16 @@ export const useCorporationStore = defineStore('corporation', () => {
     walletJournal.value = res.data
   }
 
-  async function fetchAssets(corporationId: number, page = 1) {
-    const res = await api.get(`/api/v1/corporations/${corporationId}/assets`, { params: { page } })
-    assets.value = res.data
+  async function fetchAssets(corporationId: number, page = 1, q?: string) {
+    const res = await api.get(`/api/v1/corporations/${corporationId}/assets`, {
+      params: { page, q: q || undefined },
+    })
+    assets.value = res.data.items
+    assetsTotal.value = res.data.total
   }
 
   return {
-    corporations, corporationInfo, members, wallets, walletJournal, assets,
+    corporations, corporationInfo, members, wallets, walletJournal, assets, assetsTotal,
     loading, error,
     fetchList, fetchInfo, fetchMembers, fetchWallet, fetchJournal, fetchAssets,
   }

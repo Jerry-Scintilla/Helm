@@ -190,6 +190,7 @@ async def get_corporation_wallet_journal(
 @router.get("/{corporation_id}/assets")
 async def get_corporation_assets(
     corporation_id: int,
+    q: str | None = Query(None, description="按资产名称或地点 ID 搜索（模糊匹配）"),
     page: int = Query(1, ge=1),
     per_page: int = Query(100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
@@ -208,8 +209,6 @@ async def get_corporation_assets(
         select(CorporationAsset)
         .where(CorporationAsset.corporation_id == corp.id)
         .order_by(CorporationAsset.location_id)
-        .offset((page - 1) * per_page)
-        .limit(per_page)
     )
     assets = asset_result.scalars().all()
     asset_rows = [
@@ -224,5 +223,24 @@ async def get_corporation_assets(
         for a in assets
     ]
     await enrich_type_names_all_locales(asset_rows, id_field="type_id", name_field="type_name", db=db)
-    await enrich_type_icons(asset_rows, id_field="type_id", icon_field="icon_url", db=db)
-    return asset_rows
+
+    # 按资产名称（全语言）或地点 ID 过滤
+    if q:
+        q_lower = q.strip().lower()
+
+        def row_matches(row: dict) -> bool:
+            type_name = row.get("type_name")
+            if isinstance(type_name, dict):
+                if any(q_lower in str(v).lower() for v in type_name.values() if v):
+                    return True
+            elif type_name and q_lower in str(type_name).lower():
+                return True
+            return q_lower in str(row["location_id"])
+
+        asset_rows = [row for row in asset_rows if row_matches(row)]
+
+    total = len(asset_rows)
+    start = (page - 1) * per_page
+    paginated = asset_rows[start : start + per_page]
+    await enrich_type_icons(paginated, id_field="type_id", icon_field="icon_url", db=db)
+    return {"total": total, "page": page, "per_page": per_page, "items": paginated}

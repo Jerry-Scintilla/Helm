@@ -774,7 +774,8 @@
     "wallet": "公司钱包",
     "division": "分部 {n}",
     "assets": "公司资产",
-    "assetsCount": "共 {n} 条记录（本页）"
+    "assetsCount": "共 {n} 条记录",
+    "assetsSearchPlaceholder": "搜索资产名称或地点 ID（如 跃迁扰断器 II）…"
   },
   "alliance": {
     "updatedAt": "更新于",

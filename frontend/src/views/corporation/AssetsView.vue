@@ -15,16 +15,27 @@ const { t } = useI18n()
 const corporationId = Number(route.params.id)
 const loading = ref(true)
 const page = ref(1)
+const perPage = 100
+const searchQuery = ref('')
+let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(() => load())
 
 async function load() {
   loading.value = true
   try {
-    await corpStore.fetchAssets(corporationId, page.value)
+    await corpStore.fetchAssets(corporationId, page.value, searchQuery.value)
   } finally {
     loading.value = false
   }
+}
+
+function onSearchInput() {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    page.value = 1
+    load()
+  }, 350)
 }
 
 const cols: DataTableColumns<CorporationAsset> = [
@@ -55,9 +66,24 @@ const cols: DataTableColumns<CorporationAsset> = [
   <div>
     <h1 class="page-title h-serif">{{ t('corp.assets') }}</h1>
 
+    <div class="toolbar">
+      <n-input
+        v-model:value="searchQuery"
+        :placeholder="t('corp.assetsSearchPlaceholder')"
+        clearable
+        class="search-input"
+        @input="onSearchInput"
+        @clear="() => { page = 1; load() }"
+      >
+        <template #prefix>
+          <n-icon><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></n-icon>
+        </template>
+      </n-input>
+      <span class="total-bar">{{ t('corp.assetsCount', { n: corpStore.assetsTotal }) }}</span>
+    </div>
+
     <div v-if="loading" class="helm-page-loader"><HelmLoader :size="48" /></div>
     <template v-else>
-      <div class="total-bar">{{ t('corp.assetsCount', { n: corpStore.assets.length }) }}</div>
       <n-data-table
         :columns="cols"
         :data="corpStore.assets"
@@ -66,9 +92,13 @@ const cols: DataTableColumns<CorporationAsset> = [
         :row-key="(r: CorporationAsset) => r.item_id"
       />
       <div class="pagination">
-        <n-button size="small" :disabled="page <= 1" @click="page--; load()">{{ t('common.prevPage') }}</n-button>
-        <span class="page-num">{{ t('common.page', { n: page }) }}</span>
-        <n-button size="small" :disabled="corpStore.assets.length < 200" @click="page++; load()">{{ t('common.nextPage') }}</n-button>
+        <n-pagination
+          v-model:page="page"
+          :page-count="Math.max(1, Math.ceil(corpStore.assetsTotal / perPage))"
+          :page-slot="5"
+          show-quick-jumper
+          @update:page="load()"
+        />
       </div>
     </template>
   </div>
@@ -76,7 +106,8 @@ const cols: DataTableColumns<CorporationAsset> = [
 
 <style scoped>
 .page-title { font-size: 1.6rem; color: #faf9f5; margin-bottom: 20px; }
-.total-bar { font-size: 0.85rem; color: #87867f; margin-bottom: 12px; }
-.pagination { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
-.page-num { font-size: 0.85rem; color: #87867f; }
+.toolbar { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+.search-input { max-width: 320px; }
+.total-bar { font-size: 0.85rem; color: #87867f; white-space: nowrap; }
+.pagination { display: flex; justify-content: center; margin-top: 16px; }
 </style>

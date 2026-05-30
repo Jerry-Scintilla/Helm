@@ -774,7 +774,8 @@
     "wallet": "Corporation Wallet",
     "division": "Division {n}",
     "assets": "Corporation Assets",
-    "assetsCount": "{n} records (this page)"
+    "assetsCount": "{n} records",
+    "assetsSearchPlaceholder": "Search asset name or location ID (e.g. Warp Disruptor II)…"
   },
   "alliance": {
     "updatedAt": "Updated at",

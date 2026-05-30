@@ -48,7 +48,9 @@ async def pip_install(
     dependencies that are not available on Test PyPI.
     """
     def _run() -> tuple[bool, str]:
-        cmd = [sys.executable, "-m", "pip", "install", "--no-input", "--disable-pip-version-check"]
+        # --upgrade so installing a package that is already present pulls the
+        # newer version (the marketplace "Update" action reuses this path).
+        cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "--no-input", "--disable-pip-version-check"]
         if source == "testpypi":
             cmd += ["--index-url", _TESTPYPI_INDEX, "--extra-index-url", _PYPI_EXTRA_INDEX]
         cmd.append(package)

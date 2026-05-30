@@ -16,6 +16,7 @@ import asyncio
 import logging
 
 import httpx
+from packaging.version import InvalidVersion, Version
 
 from app.cache import logical_get, logical_set, try_acquire_lock
 from app.core.config import settings
@@ -25,6 +26,12 @@ logger = logging.getLogger(__name__)
 
 CACHE_KEY = "marketplace:index"
 CACHE_TTL = 21600  # 6 hours
+
+# Per-package version list (resolved from the registry, not the curated index).
+# The "v2" namespace invalidates the old cache shape (a plain list[str]); the
+# value is now a list of version-metadata dicts.
+VERSIONS_CACHE_KEY = "marketplace:versions:v2:{source}:{package}"
+VERSIONS_CACHE_TTL = 3600  # 1 hour
 
 _PYPI_JSON = "https://pypi.org/pypi/{package}/json"
 _TESTPYPI_JSON = "https://test.pypi.org/pypi/{package}/json"
@@ -63,6 +70,95 @@ async def _fetch_package_metadata(package_name: str, source: str) -> dict | None
     except Exception as exc:
         logger.debug("%s metadata fetch failed for %s: %s", source, package_name, exc)
         return None
+
+
+def _sort_version_entries(entries: list[dict]) -> list[dict]:
+    """Newest first. PEP 440-parseable versions sorted by Version; the rest
+    (unparseable tags) appended after, string-sorted descending."""
+    parseable: list[tuple[Version, dict]] = []
+    other: list[dict] = []
+    for e in entries:
+        try:
+            parseable.append((Version(e["version"]), e))
+        except InvalidVersion:
+            other.append(e)
+    parseable.sort(key=lambda t: t[0], reverse=True)
+    other.sort(key=lambda e: e["version"], reverse=True)
+    return [e for _, e in parseable] + other
+
+
+def _release_date(files: list) -> str | None:
+    """Earliest upload timestamp (ISO 8601) across a release's files."""
+    times = [
+        f.get("upload_time_iso_8601")
+        for f in files
+        if isinstance(f, dict) and f.get("upload_time_iso_8601")
+    ]
+    return min(times) if times else None
+
+
+async def _fetch_registry_versions(package_name: str, source: str) -> list[dict]:
+    """All published versions for a package from the PyPI/TestPyPI JSON API.
+
+    Returns one dict per version: ``{version, released_at, yanked,
+    yanked_reason}``, newest first. Empty-distribution releases are skipped;
+    fully-yanked releases are kept but flagged. Unknown package → empty list.
+    """
+    url = (_TESTPYPI_JSON if source == "testpypi" else _PYPI_JSON).format(package=package_name)
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.get(url)
+            if r.status_code == 404:
+                return []
+            r.raise_for_status()
+            releases = r.json().get("releases", {}) or {}
+    except Exception as exc:
+        logger.debug("%s version fetch failed for %s: %s", source, package_name, exc)
+        return []
+
+    entries: list[dict] = []
+    for ver, files in releases.items():
+        if not isinstance(files, list) or not files:
+            # Release with no uploaded distributions — can't be pip-installed.
+            continue
+        yanked = all(f.get("yanked") for f in files)
+        yanked_reason = next(
+            (f.get("yanked_reason") for f in files if f.get("yanked") and f.get("yanked_reason")),
+            None,
+        )
+        entries.append({
+            "version": ver,
+            "released_at": _release_date(files),
+            "yanked": yanked,
+            "yanked_reason": yanked_reason,
+        })
+    return _sort_version_entries(entries)
+
+
+async def get_plugin_versions(package_name: str, source: str = "pypi") -> list[dict]:
+    """Available versions (with metadata) for a package, newest first.
+
+    Uses the Redis logical-expiration cache strategy.
+    """
+    key = VERSIONS_CACHE_KEY.format(source=source, package=package_name)
+    data, is_stale = await logical_get(key)
+
+    if data is None:
+        data = await _fetch_registry_versions(package_name, source)
+        await logical_set(key, data, VERSIONS_CACHE_TTL)
+    elif is_stale:
+        if await try_acquire_lock(key, ttl=60):
+            asyncio.create_task(_refresh_versions(key, package_name, source))
+
+    return data
+
+
+async def _refresh_versions(key: str, package_name: str, source: str) -> None:
+    try:
+        data = await _fetch_registry_versions(package_name, source)
+        await logical_set(key, data, VERSIONS_CACHE_TTL)
+    except Exception:
+        logger.exception("Background version refresh failed for %s", package_name)
 
 
 async def _build_index() -> list[dict]:
@@ -118,8 +214,28 @@ async def _background_refresh() -> None:
         logger.exception("Background marketplace refresh failed")
 
 
-async def get_marketplace_index(installed_packages: set[str]) -> list[MarketplacePlugin]:
-    """Return marketplace plugins using Redis logical expiration."""
+def _is_update_available(installed_version: str | None, market_version: str | None) -> bool:
+    """True when both versions parse and the marketplace version is strictly newer.
+
+    Unparseable versions are treated conservatively as "no update" so we never
+    nag the user to "update" to a version we can't actually compare.
+    """
+    if not installed_version or not market_version:
+        return False
+    try:
+        return Version(market_version) > Version(installed_version)
+    except InvalidVersion:
+        return False
+
+
+async def get_marketplace_index(
+    installed_versions: dict[str, str],
+) -> list[MarketplacePlugin]:
+    """Return marketplace plugins using Redis logical expiration.
+
+    ``installed_versions`` maps package_name -> locally installed version so the
+    index can flag both installation status and whether an update is available.
+    """
     data, is_stale = await logical_get(CACHE_KEY)
 
     if data is None:
@@ -129,10 +245,19 @@ async def get_marketplace_index(installed_packages: set[str]) -> list[Marketplac
         if await try_acquire_lock(CACHE_KEY, ttl=120):
             asyncio.create_task(_background_refresh())
 
-    return [
-        MarketplacePlugin(**entry, installed=entry["package_name"] in installed_packages)
-        for entry in data
-    ]
+    result = []
+    for entry in data:
+        pkg = entry["package_name"]
+        installed_version = installed_versions.get(pkg)
+        result.append(
+            MarketplacePlugin(
+                **entry,
+                installed=pkg in installed_versions,
+                installed_version=installed_version,
+                update_available=_is_update_available(installed_version, entry.get("version")),
+            )
+        )
+    return result
 
 
 async def refresh_cache() -> int:

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, nextTick, watch } from 'vue'
-import { usePluginStore } from '@/stores/plugin'
+import { computed, onMounted, onUnmounted, ref, nextTick, watch } from 'vue'
+import { usePluginStore, type MarketplacePlugin } from '@/stores/plugin'
 import { useAuthStore } from '@/stores/auth'
 import { useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
@@ -33,16 +33,44 @@ function onSearchInput() {
   }, 350)
 }
 
-// Install modal
+// Install modal (manual install: PyPI package name or .whl upload)
 const showInstall = ref(false)
 const installTab = ref<'pypi' | 'whl'>('pypi')
 const packageName = ref('')
 const whlFile = ref<File | null>(null)
 const logContainer = ref<HTMLElement | null>(null)
 
+function openInstallModal() {
+  packageName.value = ''
+  installTab.value = 'pypi'
+  showInstall.value = true
+}
+
+// Version-selection modal: lists every available version with release date and
+// status so the user can compare and pick one to install.
+const showVersions = ref(false)
+const versionsTarget = ref<MarketplacePlugin | null>(null)
+
+function openVersions(pkg: MarketplacePlugin) {
+  versionsTarget.value = pkg
+  showVersions.value = true
+  store.fetchVersions(pkg.package_name, pkg.source)
+}
+
+// The newest non-yanked version is the "latest" we badge in the list.
+const latestVersion = computed(() => {
+  const list = versionsTarget.value ? store.marketplaceVersions[versionsTarget.value.package_name] : undefined
+  return list?.find(v => !v.yanked)?.version ?? null
+})
+
+function formatDate(iso: string | null) {
+  return iso ? iso.slice(0, 10) : ''
+}
+
 // Uninstall confirm modal
 const showUninstall = ref(false)
 const uninstallTarget = ref('')
+const uninstallKeepData = ref(false)
 
 // Re-login reminder modal
 const showReloginModal = ref(false)
@@ -120,12 +148,17 @@ async function handleInstall() {
   }
 }
 
-async function installFromMarketplace(pkg: { package_name: string; source: 'pypi' | 'testpypi' }) {
+// Install a specific version picked from the version modal ('' = latest).
+// Closes the version modal and opens the install modal to stream the log.
+async function installAtVersion(version: string) {
+  const pkg = versionsTarget.value
+  if (!pkg) return
+  showVersions.value = false
   packageName.value = pkg.package_name
-  showInstall.value = true
   installTab.value = 'pypi'
+  showInstall.value = true
   try {
-    await store.installByName(pkg.package_name, pkg.source)
+    await store.installByName(pkg.package_name, pkg.source, version || '')
   } catch {
     message.error(t('admin.plugins.submitFailed'))
   }
@@ -148,6 +181,7 @@ function onFileChange(e: Event) {
 
 function openUninstall(name: string) {
   uninstallTarget.value = name
+  uninstallKeepData.value = false
   showUninstall.value = true
 }
 
@@ -160,7 +194,7 @@ watch(() => store.uninstallInProgress, (cur, prev) => {
 
 async function confirmUninstall() {
   try {
-    await store.uninstallPlugin(uninstallTarget.value)
+    await store.uninstallPlugin(uninstallTarget.value, uninstallKeepData.value)
   } catch {
     message.error(t('admin.plugins.uninstallFailed'))
   }
@@ -228,7 +262,7 @@ function scrollLog() {
 
       <div class="view-tab-spacer" />
 
-      <button v-if="viewTab === 'installed'" class="btn-primary" @click="showInstall = true">
+      <button v-if="viewTab === 'installed'" class="btn-primary" @click="openInstallModal()">
         {{ t('admin.plugins.install') }}
       </button>
     </div>
@@ -308,11 +342,15 @@ function scrollLog() {
               </div>
               <div class="plugin-meta">
                 {{ p.package_name }}
-                <template v-if="p.version"> · v{{ p.version }}</template>
+                <template v-if="p.update_available"> · v{{ p.installed_version }} → v{{ p.version }}</template>
+                <template v-else-if="p.version"> · v{{ p.version }}</template>
                 <template v-if="p.author"> · {{ p.author }}</template>
               </div>
             </div>
-            <span v-if="p.installed" class="status-tag installed-tag">
+            <span v-if="p.update_available" class="status-tag update-tag">
+              {{ t('admin.plugins.marketUpdatable') }}
+            </span>
+            <span v-else-if="p.installed" class="status-tag installed-tag">
               {{ t('admin.plugins.marketInstalled') }}
             </span>
           </div>
@@ -333,15 +371,81 @@ function scrollLog() {
             >{{ t('admin.plugins.marketHomepage') }}</a>
             <button
               class="btn-primary btn-sm-primary"
-              :disabled="p.installed || store.installing"
-              @click="installFromMarketplace(p)"
+              :disabled="store.installing"
+              @click="openVersions(p)"
             >
-              {{ p.installed ? t('admin.plugins.marketInstalled') : t('admin.plugins.marketInstall') }}
+              {{ p.update_available
+                ? t('admin.plugins.marketUpdate')
+                : p.installed
+                  ? t('admin.plugins.marketVersions')
+                  : t('admin.plugins.marketInstall') }}
             </button>
           </div>
         </div>
       </div>
     </template>
+
+    <!-- Version selection modal -->
+    <n-modal
+      v-model:show="showVersions"
+      preset="card"
+      :title="t('admin.plugins.versionModalTitle')"
+      style="width:560px;max-width:95vw"
+    >
+      <template v-if="versionsTarget">
+        <div class="ver-header">
+          <div class="ver-title">{{ versionsTarget.display_name }}</div>
+          <div class="ver-pkg">{{ versionsTarget.package_name }}</div>
+          <div v-if="versionsTarget.description" class="ver-desc">{{ versionsTarget.description }}</div>
+          <div v-if="versionsTarget.installed_version" class="ver-installed">
+            {{ t('admin.plugins.versionCurrentlyInstalled', { version: versionsTarget.installed_version }) }}
+          </div>
+        </div>
+
+        <div v-if="store.versionsLoading[versionsTarget.package_name]" class="ver-loading">
+          <HelmLoader :size="36" />
+        </div>
+
+        <div
+          v-else-if="(store.marketplaceVersions[versionsTarget.package_name] || []).length === 0"
+          class="ver-empty"
+        >
+          {{ t('admin.plugins.versionNone') }}
+        </div>
+
+        <ul v-else class="ver-list">
+          <li
+            v-for="v in store.marketplaceVersions[versionsTarget.package_name]"
+            :key="v.version"
+            class="ver-row"
+            :class="{ 'ver-row-current': v.version === versionsTarget.installed_version }"
+          >
+            <div class="ver-row-main">
+              <div class="ver-row-top">
+                <span class="ver-num">v{{ v.version }}</span>
+                <span v-if="v.version === latestVersion" class="ver-badge ver-badge-latest">{{ t('admin.plugins.versionLatestBadge') }}</span>
+                <span v-if="v.version === versionsTarget.installed_version" class="ver-badge ver-badge-installed">{{ t('admin.plugins.versionInstalledBadge') }}</span>
+                <span v-if="v.yanked" class="ver-badge ver-badge-yanked" :title="v.yanked_reason || ''">{{ t('admin.plugins.versionYankedBadge') }}</span>
+              </div>
+              <div class="ver-row-sub">
+                <span v-if="v.released_at">{{ formatDate(v.released_at) }}</span>
+                <span v-if="v.yanked && v.yanked_reason" class="ver-yank-reason">· {{ v.yanked_reason }}</span>
+              </div>
+            </div>
+            <button
+              class="btn-sm ver-install-btn"
+              :class="{ 'ver-install-current': v.version === versionsTarget.installed_version }"
+              :disabled="store.installing || v.version === versionsTarget.installed_version"
+              @click="installAtVersion(v.version)"
+            >
+              {{ v.version === versionsTarget.installed_version
+                ? t('admin.plugins.versionCurrent')
+                : t('admin.plugins.marketInstall') }}
+            </button>
+          </li>
+        </ul>
+      </template>
+    </n-modal>
 
     <!-- Install modal -->
     <n-modal v-model:show="showInstall" preset="card" :title="t('admin.plugins.installModalTitle')" style="width:520px;max-width:95vw">
@@ -387,6 +491,13 @@ function scrollLog() {
       :close-on-esc="!store.uninstallInProgress"
     >
       <p class="confirm-text" v-html="t('admin.plugins.uninstallWarning', { name: `<strong>${uninstallTarget}</strong>` })" />
+      <label class="keep-data-row">
+        <input type="checkbox" v-model="uninstallKeepData" :disabled="store.uninstallInProgress" />
+        <span>
+          <span class="keep-data-label">{{ t('admin.plugins.keepData') }}</span>
+          <span class="keep-data-hint">{{ t('admin.plugins.keepDataHint') }}</span>
+        </span>
+      </label>
       <template #footer>
         <div style="display:flex;justify-content:flex-end;gap:8px">
           <n-button :disabled="store.uninstallInProgress" @click="showUninstall = false">{{ t('common.cancel') }}</n-button>
@@ -480,6 +591,24 @@ function scrollLog() {
   color: #6abf69;
   background: rgba(106, 191, 105, 0.1) !important;
 }
+
+/* Update-available badge in marketplace */
+.update-tag {
+  color: #c96442;
+  background: rgba(201, 100, 66, 0.12) !important;
+}
+
+/* Keep-data checkbox in uninstall modal */
+.keep-data-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+  cursor: pointer;
+}
+.keep-data-row input { margin-top: 3px; flex-shrink: 0; cursor: pointer; }
+.keep-data-label { display: block; font-size: 0.85rem; color: #faf9f5; }
+.keep-data-hint { display: block; font-size: 0.75rem; color: #87867f; line-height: 1.5; margin-top: 2px; }
 
 /* Source registry badge */
 .source-badge {
@@ -580,7 +709,7 @@ function scrollLog() {
 .plugin-desc { font-size: 0.82rem; color: #87867f; line-height: 1.5; }
 .plugin-error { font-size: 0.78rem; color: #b53333; background: rgba(181,51,51,0.1); padding: 6px 10px; border-radius: 4px; }
 
-.plugin-actions { display: flex; gap: 8px; margin-top: 4px; align-items: center; }
+.plugin-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; align-items: center; }
 .btn-sm {
   background: #30302e;
   color: #b0aea5;
@@ -614,6 +743,51 @@ function scrollLog() {
 .tab-btn.active { color: #faf9f5; border-bottom-color: #c96442; }
 
 .tab-body { margin-bottom: 16px; }
+
+/* Version selection modal */
+.ver-header { margin-bottom: 14px; }
+.ver-title { font-size: 1rem; font-weight: 500; color: #faf9f5; }
+.ver-pkg { font-size: 0.75rem; color: #87867f; font-family: 'Anthropic Mono', monospace; margin-top: 2px; }
+.ver-desc { font-size: 0.82rem; color: #b0aea5; line-height: 1.5; margin-top: 8px; }
+.ver-installed { font-size: 0.78rem; color: #6abf69; margin-top: 8px; }
+
+.ver-loading { display: flex; justify-content: center; padding: 32px 0; }
+.ver-empty { text-align: center; color: #5e5d59; font-size: 0.85rem; padding: 32px 0; }
+
+.ver-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 360px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ver-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #1e1e1c;
+  border: 1px solid #30302e;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+.ver-row-current { border-color: rgba(106, 191, 105, 0.4); }
+.ver-row-main { min-width: 0; }
+.ver-row-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ver-num { font-size: 0.9rem; font-weight: 500; color: #faf9f5; }
+.ver-badge { font-size: 0.62rem; border-radius: 3px; padding: 1px 6px; }
+.ver-badge-latest { color: #3898ec; background: rgba(56, 152, 236, 0.12); }
+.ver-badge-installed { color: #6abf69; background: rgba(106, 191, 105, 0.12); }
+.ver-badge-yanked { color: #b53333; background: rgba(181, 51, 51, 0.12); }
+.ver-row-sub { font-size: 0.72rem; color: #87867f; margin-top: 3px; }
+.ver-yank-reason { color: #b53333; }
+
+.ver-install-btn { flex-shrink: 0; }
+.ver-install-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ver-install-current { background: transparent; color: #6abf69; }
 
 .file-drop {
   display: flex;

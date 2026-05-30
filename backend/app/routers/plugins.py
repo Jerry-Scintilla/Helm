@@ -20,8 +20,8 @@ from app.plugins import events
 from app.plugins.base import HelmPlugin
 from app.plugins.manager import disable_plugin, enable_plugin, install_plugin, uninstall_plugin
 from app.plugins.registry import extension_registry, registry
-from app.plugins.marketplace import get_marketplace_index, refresh_cache
-from app.schemas.plugin import InstallRequest, InstallResponse, MarketplacePlugin, MarketplaceRefreshResponse, PluginInfo, PluginStatusResponse
+from app.plugins.marketplace import get_marketplace_index, get_plugin_versions, refresh_cache
+from app.schemas.plugin import InstallRequest, InstallResponse, MarketplacePlugin, MarketplaceRefreshResponse, PluginInfo, PluginStatusResponse, PluginVersionsResponse
 
 
 logger = logging.getLogger(__name__)
@@ -32,14 +32,14 @@ _install_tasks: set[asyncio.Task] = set()
 _uninstall_tasks: set[asyncio.Task] = set()
 
 
-def _spawn_uninstall(name: str) -> None:
+def _spawn_uninstall(name: str, keep_data: bool = False) -> None:
     """Fire-and-forget the uninstall coroutine, fully detached from the request.
 
     Mirroring _spawn_install: awaiting uninstall_plugin() in the handler would
     pin a DB connection for the entire pip + migration duration, exhausting the
     pool and stalling all other requests.
     """
-    task = asyncio.create_task(uninstall_plugin(name), name=f"uninstall-{name}")
+    task = asyncio.create_task(uninstall_plugin(name, keep_data=keep_data), name=f"uninstall-{name}")
     _uninstall_tasks.add(task)
 
     def _done(t: asyncio.Task) -> None:
@@ -53,7 +53,7 @@ def _spawn_uninstall(name: str) -> None:
     task.add_done_callback(_done)
 
 
-def _spawn_install(package_name: str, whl_path=None, source: str = "pypi") -> None:
+def _spawn_install(package_name: str, whl_path=None, source: str = "pypi", version: str | None = None) -> None:
     """Fire-and-forget the install coroutine, fully detached from the request.
 
     Using BackgroundTasks here was the original pattern but it keeps the
@@ -64,7 +64,7 @@ def _spawn_install(package_name: str, whl_path=None, source: str = "pypi") -> No
     if whl_path is not None:
         coro = install_plugin(package_name, whl_path)
     else:
-        coro = install_plugin(package_name, source=source)
+        coro = install_plugin(package_name, source=source, version=version)
     task = asyncio.create_task(coro, name=f"install-{package_name}")
     _install_tasks.add(task)
 
@@ -192,7 +192,7 @@ async def install_by_name(
     _: User = Depends(require_permission("global.plugin_manage")),
 ):
     task_id = str(uuid.uuid4())
-    _spawn_install(req.package_name, source=req.source)
+    _spawn_install(req.package_name, source=req.source, version=req.version or None)
     return InstallResponse(task_id=task_id, status="installing")
 
 
@@ -223,7 +223,7 @@ async def search_marketplace(
     _: User = Depends(require_permission("global.plugin_manage")),
 ):
     result = await db.execute(select(Plugin))
-    installed = {p.package_name for p in result.scalars().all()}
+    installed = {p.package_name: p.version for p in result.scalars().all()}
     plugins = await get_marketplace_index(installed)
     if q:
         q_lower = q.lower()
@@ -235,6 +235,19 @@ async def search_marketplace(
             or any(q_lower in tag for tag in p.tags)
         ]
     return plugins
+
+
+@router.get("/marketplace/versions", response_model=PluginVersionsResponse)
+async def list_plugin_versions(
+    package_name: str,
+    source: str = "pypi",
+    _: User = Depends(require_permission("global.plugin_manage")),
+):
+    """All installable versions of a package, newest first (from PyPI/TestPyPI)."""
+    if source not in ("pypi", "testpypi"):
+        source = "pypi"
+    versions = await get_plugin_versions(package_name, source)
+    return PluginVersionsResponse(package_name=package_name, source=source, versions=versions)
 
 
 @router.post("/{name}/enable", status_code=204)
@@ -259,9 +272,10 @@ async def disable(
 @router.delete("/{name}", status_code=204)
 async def uninstall(
     name: str,
+    keep_data: bool = Query(False, description="Preserve the plugin's database tables (skip migration downgrade)"),
     _: User = Depends(require_permission("global.plugin_manage")),
 ):
-    _spawn_uninstall(name)
+    _spawn_uninstall(name, keep_data=keep_data)
 
 
 @router.get("/{name}/status", response_model=PluginStatusResponse)

@@ -44,6 +44,13 @@ export interface PluginInfo {
   updated_at: string
 }
 
+export interface VersionInfo {
+  version: string
+  released_at: string | null
+  yanked: boolean
+  yanked_reason: string | null
+}
+
 export interface MarketplacePlugin {
   package_name: string
   display_name: string
@@ -54,6 +61,8 @@ export interface MarketplacePlugin {
   verified: boolean
   homepage: string | null
   installed: boolean
+  installed_version: string | null
+  update_available: boolean
   source: 'pypi' | 'testpypi'
 }
 
@@ -67,6 +76,10 @@ export const usePluginStore = defineStore('plugin', () => {
   const marketplacePlugins = ref<MarketplacePlugin[]>([])
   const marketplaceLoading = ref(false)
   const marketplaceRefreshing = ref(false)
+  // Per-package version lists (with metadata) for the marketplace version
+  // picker, keyed by package_name. Fetched lazily and cached.
+  const marketplaceVersions = ref<Record<string, VersionInfo[]>>({})
+  const versionsLoading = ref<Record<string, boolean>>({})
   // Tracks a cache-bust token (Unix ms timestamp) per plugin name.
   // Appended as ?_v=<token> to iframe src to force reload after status change.
   const pluginCacheTokens = ref<Record<string, number>>({})
@@ -125,8 +138,34 @@ export const usePluginStore = defineStore('plugin', () => {
     }
   }
 
-  async function installByName(packageName: string, source: 'pypi' | 'testpypi' = 'pypi') {
-    await api.post('/api/v1/admin/plugins/install', { package_name: packageName, source })
+  async function fetchVersions(packageName: string, source: 'pypi' | 'testpypi' = 'pypi') {
+    if (!packageName) return
+    // Cached or already loading → skip.
+    if (marketplaceVersions.value[packageName] || versionsLoading.value[packageName]) return
+    versionsLoading.value = { ...versionsLoading.value, [packageName]: true }
+    try {
+      const res = await api.get<{ versions: VersionInfo[] }>(
+        '/api/v1/admin/plugins/marketplace/versions',
+        { params: { package_name: packageName, source } },
+      )
+      marketplaceVersions.value = { ...marketplaceVersions.value, [packageName]: res.data.versions }
+    } catch {
+      marketplaceVersions.value = { ...marketplaceVersions.value, [packageName]: [] }
+    } finally {
+      versionsLoading.value = { ...versionsLoading.value, [packageName]: false }
+    }
+  }
+
+  async function installByName(
+    packageName: string,
+    source: 'pypi' | 'testpypi' = 'pypi',
+    version?: string | null,
+  ) {
+    await api.post('/api/v1/admin/plugins/install', {
+      package_name: packageName,
+      source,
+      version: version || null,
+    })
   }
 
   async function installByWhl(file: File) {
@@ -149,15 +188,53 @@ export const usePluginStore = defineStore('plugin', () => {
     await fetchPlugins()
   }
 
-  async function uninstallPlugin(name: string) {
+  // Holds the polling-fallback timer so we can cancel it if an SSE event
+  // resolves the uninstall first (or the component unmounts).
+  let _uninstallPoll: ReturnType<typeof setInterval> | null = null
+
+  function stopUninstallPoll() {
+    if (_uninstallPoll) {
+      clearInterval(_uninstallPoll)
+      _uninstallPoll = null
+    }
+  }
+
+  async function uninstallPlugin(name: string, keepData = false) {
     uninstallInProgress.value = true
     bumpCacheToken(name)
     try {
-      await api.delete(`/api/v1/admin/plugins/${name}`)
+      await api.delete(`/api/v1/admin/plugins/${name}`, { params: { keep_data: keepData } })
     } catch (e) {
       uninstallInProgress.value = false
       throw e
     }
+    // Polling fallback: the backend finishes uninstall in a detached task and
+    // announces it over SSE. If that event is missed (connection drop, queue
+    // full, publish-before-subscribe), the UI would hang in "uninstalling"
+    // forever. Poll the plugin's status endpoint — a 404 means the DB record
+    // was deleted, i.e. the uninstall completed — and clear the state ourselves.
+    stopUninstallPoll()
+    let elapsed = 0
+    _uninstallPoll = setInterval(async () => {
+      elapsed += 2000
+      try {
+        await api.get(`/api/v1/admin/plugins/${name}/status`)
+        // Still present → keep waiting (give up after 5 min as a safety valve).
+        if (elapsed >= 300000) {
+          stopUninstallPoll()
+          uninstallInProgress.value = false
+          await fetchPlugins()
+        }
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          stopUninstallPoll()
+          uninstallInProgress.value = false
+          bumpCacheToken(name)
+          await fetchPlugins()
+        }
+        // Other errors (e.g. transient network) → keep polling.
+      }
+    }, 2000)
   }
 
   function startSSE() {
@@ -179,6 +256,7 @@ export const usePluginStore = defineStore('plugin', () => {
           installing.value = false
           installSucceeded.value = true
         } else if (ev.type === 'plugin.uninstalled') {
+          stopUninstallPoll()
           uninstallInProgress.value = false
           if (ev.name) bumpCacheToken(ev.name)
           fetchPlugins()
@@ -206,6 +284,7 @@ export const usePluginStore = defineStore('plugin', () => {
   function stopSSE() {
     _sse?.close()
     _sse = null
+    stopUninstallPoll()
   }
 
   return {
@@ -219,6 +298,9 @@ export const usePluginStore = defineStore('plugin', () => {
     marketplacePlugins,
     marketplaceLoading,
     marketplaceRefreshing,
+    marketplaceVersions,
+    versionsLoading,
+    fetchVersions,
     bumpCacheToken,
     ensureCacheToken,
     fetchPlugins,

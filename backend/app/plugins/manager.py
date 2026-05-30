@@ -214,12 +214,22 @@ async def install_plugin(
     package_name: str,
     whl_path: Path | None = None,
     source: str = "pypi",
+    version: str | None = None,
 ) -> dict:
     """
     Full installation flow. Designed to run inside a BackgroundTask.
     Creates its own DB session (caller's session is already closed by then).
+
+    When ``version`` is given (and not a .whl install) the exact version is
+    pinned (``package==version``); pip will upgrade or downgrade to it. This
+    backs the marketplace's "install a specific historical version" feature.
     """
-    install_target = str(whl_path) if whl_path else package_name
+    if whl_path:
+        install_target = str(whl_path)
+    elif version:
+        install_target = f"{package_name}=={version}"
+    else:
+        install_target = package_name
     logger.info("[install:%s] ── START install_target=%s source=%s", package_name, install_target, source)
 
     await publish_event("plugin.installing", {"package_name": package_name})
@@ -478,7 +488,14 @@ async def disable_plugin(name: str) -> None:
 
 # ── Uninstall ─────────────────────────────────────────────────────────────────
 
-async def uninstall_plugin(name: str) -> None:
+async def uninstall_plugin(name: str, keep_data: bool = False) -> None:
+    """Uninstall a plugin.
+
+    When ``keep_data`` is True the plugin's alembic migrations are NOT
+    downgraded, so its database tables (and the rows in them) survive the
+    uninstall. A later reinstall of the same plugin will pick the existing
+    schema back up. When False (default) the tables are dropped.
+    """
     # Disable first (handles hooks + extension registry + router unmount)
     if registry.is_loaded(name):
         await disable_plugin(name)
@@ -503,16 +520,21 @@ async def uninstall_plugin(name: str) -> None:
     except Exception as exc:
         logger.warning("on_uninstall hook error for '%s': %s", name, exc)
 
-    # 2. Downgrade migrations — must run while package is still importable
-    try:
-        ep_result = discover_entry_point(package_name)
-        if ep_result is not None:
-            _ep_str, plugin_dir = ep_result
-            mig_ok, mig_out = await run_plugin_downgrade(name, plugin_dir)
-            if not mig_ok:
-                logger.warning("[uninstall:%s] downgrade failed (non-blocking): %s", name, mig_out)
-    except Exception as exc:
-        logger.warning("[uninstall:%s] downgrade error (non-blocking): %s", name, exc)
+    # 2. Downgrade migrations — must run while package is still importable.
+    # Skipped entirely when the caller asked to keep the plugin's data: leaving
+    # the tables in place lets a future reinstall resume from the current schema.
+    if keep_data:
+        logger.info("[uninstall:%s] keep_data=True — skipping migration downgrade, tables preserved", name)
+    else:
+        try:
+            ep_result = discover_entry_point(package_name)
+            if ep_result is not None:
+                _ep_str, plugin_dir = ep_result
+                mig_ok, mig_out = await run_plugin_downgrade(name, plugin_dir)
+                if not mig_ok:
+                    logger.warning("[uninstall:%s] downgrade failed (non-blocking): %s", name, mig_out)
+        except Exception as exc:
+            logger.warning("[uninstall:%s] downgrade error (non-blocking): %s", name, exc)
 
     # 3. pip uninstall
     ok, out = await pip_uninstall(package_name)
@@ -533,4 +555,4 @@ async def uninstall_plugin(name: str) -> None:
     # not loaded (so disable_plugin's withdraw never ran).
     await _withdraw_plugin_schedules(name)
 
-    await publish_event("plugin.uninstalled", {"name": name})
+    await publish_event("plugin.uninstalled", {"name": name, "kept_data": keep_data})

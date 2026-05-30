@@ -27,6 +27,8 @@ class PluginInfo(BaseModel):
 class InstallRequest(BaseModel):
     package_name: str
     source: Literal["pypi", "testpypi"] = "pypi"
+    # Exact version to install (e.g. "0.1.1"). None / "" installs the latest.
+    version: str | None = None
 
 
 class InstallResponse(BaseModel):
@@ -53,8 +55,25 @@ class MarketplacePlugin(BaseModel):
     verified: bool
     homepage: str | None
     installed: bool
+    # Version currently installed locally (None when not installed).
+    installed_version: str | None = None
+    # True when installed and the marketplace offers a strictly newer version.
+    update_available: bool = False
     source: Literal["pypi", "testpypi"] = "pypi"
 
 
 class MarketplaceRefreshResponse(BaseModel):
     count: int
+
+
+class PluginVersionInfo(BaseModel):
+    version: str
+    released_at: str | None = None
+    yanked: bool = False
+    yanked_reason: str | None = None
+
+
+class PluginVersionsResponse(BaseModel):
+    package_name: str
+    source: str
+    versions: list[PluginVersionInfo]

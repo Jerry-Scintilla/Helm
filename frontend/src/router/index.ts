@@ -104,6 +104,12 @@ const router = createRouter({
           name: 'alliance-overview',
           component: () => import('@/views/alliance/OverviewView.vue'),
         },
+        // Settings (all authenticated users)
+        {
+          path: 'settings/tokens',
+          name: 'settings-tokens',
+          component: () => import('@/views/settings/ApiTokensView.vue'),
+        },
         // Admin (superuser only)
         {
           path: 'admin',

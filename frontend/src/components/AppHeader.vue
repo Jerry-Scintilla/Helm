@@ -56,7 +56,11 @@ function handleAdminMenu(key: string) {
   router.push(key)
 }
 
-const userMenuOptions = computed(() => [{ label: t('header.logout'), key: 'logout' }])
+const userMenuOptions = computed(() => [
+  { label: t('header.apiTokens'), key: 'tokens' },
+  { type: 'divider', key: 'd0' },
+  { label: t('header.logout'), key: 'logout' },
+])
 
 const charMenuOptions = computed(() => [
   ...characters.value.map(c => ({ label: c.character_name, key: String(c.character_id) })),
@@ -77,6 +81,7 @@ async function handleCharMenu(key: string) {
 
 function handleUserMenu(key: string) {
   if (key === 'logout') handleLogout()
+  else if (key === 'tokens') router.push('/settings/tokens')
 }
 
 const langOptions = [

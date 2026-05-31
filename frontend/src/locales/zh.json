@@ -77,9 +77,16 @@
   "header": {
     "adminTitle": "管理后台",
     "userMenu": "用户菜单",
+    "apiTokens": "API 令牌",
     "logout": "退出登录",
     "langZh": "中",
     "langEn": "EN"
+  },
+  "settings": {
+    "tokens": {
+      "title": "我的 API 令牌",
+      "subtitle": "管理你创建的 API 令牌（含插件生成的个人密钥），可随时撤销。"
+    }
   },
   "admin": {
     "title": "管理后台",
@@ -186,6 +193,7 @@
     },
     "tokens": {
       "count": "{n} 个 API Token",
+      "countAll": "全部用户共 {n} 个 API Token",
       "namePlaceholder": "Token 名称",
       "selectScope": "选择作用域",
       "created": "Token 已创建，请妥善保存完整值",
@@ -195,9 +203,16 @@
       "empty": "暂无 API Token",
       "saveWarning": "请立即保存以下 Token 完整值，关闭后无法再次查看",
       "lastUsed": "最后使用",
+      "lastUsedCol": "最后使用",
       "active": "活跃",
       "revokedTag": "已撤销",
-      "createdPrefix": "创建"
+      "createdPrefix": "创建",
+      "owner": "所属用户",
+      "tokenName": "Token 名称",
+      "scopes": "作用域",
+      "superRole": "超级管理员",
+      "noRole": "无角色",
+      "searchPlaceholder": "搜索用户 / 名称 / 角色…"
     },
     "tasks": {
       "currentActive": "当前活跃",

@@ -15,6 +15,7 @@ from app.core.database import get_db
 from app.core.permissions import get_current_user, require_permission
 from app.core.redis import get_pool
 from app.models.alliance import Alliance
+from app.models.api_token import APIToken
 from app.models.bucket import Bucket, BucketToken
 from app.models.character import Character
 from app.models.corporation import Corporation
@@ -231,6 +232,67 @@ async def remove_role_permission(
     await db.delete(rp)
     await db.commit()
     return {"detail": "Permission removed"}
+
+
+# ── API Tokens (cross-user, superuser view) ──────────────────────────────────
+
+def _primary_role(user: User) -> str | None:
+    """用户的主角色：超级管理员优先；否则取 id 最小（最早授予）的角色名。"""
+    if user.is_superuser:
+        return "global.superuser"
+    roles = sorted((ur.role for ur in user.user_roles), key=lambda r: r.id)
+    return roles[0].name if roles else None
+
+
+@router.get("/tokens/")
+async def list_all_tokens(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("global.superuser")),
+):
+    """列出所有用户的 API Token，附带所属用户与其主角色。"""
+    result = await db.execute(
+        select(APIToken)
+        .options(
+            selectinload(APIToken.user)
+            .selectinload(User.user_roles)
+            .selectinload(UserRole.role)
+        )
+        .order_by(APIToken.created_at.desc())
+    )
+    tokens = result.scalars().all()
+    return [
+        {
+            "id": tk.id,
+            "name": tk.name,
+            "token_prefix": tk.token_prefix,
+            "scopes": tk.scopes,
+            "expires_at": tk.expires_at,
+            "last_used_at": tk.last_used_at,
+            "is_active": tk.is_active,
+            "created_at": tk.created_at,
+            "user_id": tk.user_id,
+            "username": tk.user.username if tk.user else None,
+            "is_superuser": tk.user.is_superuser if tk.user else False,
+            "primary_role": _primary_role(tk.user) if tk.user else None,
+        }
+        for tk in tokens
+    ]
+
+
+@router.delete("/tokens/{token_id}")
+async def admin_revoke_token(
+    token_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("global.superuser")),
+):
+    """超级管理员撤销任意用户的 API Token。"""
+    result = await db.execute(select(APIToken).where(APIToken.id == token_id))
+    api_token = result.scalar_one_or_none()
+    if api_token is None:
+        raise HTTPException(status_code=404, detail="Token not found")
+    api_token.is_active = False
+    await db.commit()
+    return {"detail": "Token revoked"}
 
 
 # ── Buckets ───────────────────────────────────────────────────────────────────

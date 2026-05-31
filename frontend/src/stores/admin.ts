@@ -24,6 +24,21 @@ export interface AdminPermission {
   scope_type: string
 }
 
+export interface AdminApiToken {
+  id: number
+  name: string
+  token_prefix: string
+  scopes: string
+  expires_at: string | null
+  last_used_at: string | null
+  is_active: boolean
+  created_at: string
+  user_id: number
+  username: string | null
+  is_superuser: boolean
+  primary_role: string | null
+}
+
 export interface BucketState {
   token_count: number
   health: 'available' | 'balanced' | 'overload' | 'unknown'
@@ -78,6 +93,7 @@ export const useAdminStore = defineStore('admin', () => {
   const roles = ref<AdminRole[]>([])
   const permissions = ref<AdminPermission[]>([])
   const buckets = ref<AdminBucket[]>([])
+  const allTokens = ref<AdminApiToken[]>([])
   const systemStats = ref<SystemStats | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
@@ -151,6 +167,16 @@ export const useAdminStore = defineStore('admin', () => {
     await fetchBuckets()
   }
 
+  async function fetchAllTokens() {
+    const res = await api.get('/api/v1/admin/tokens/')
+    allTokens.value = res.data
+  }
+
+  async function adminRevokeToken(tokenId: number) {
+    await api.delete(`/api/v1/admin/tokens/${tokenId}`)
+    await fetchAllTokens()
+  }
+
   async function fetchSystemStats() {
     const res = await api.get('/api/v1/admin/system/stats')
     systemStats.value = res.data
@@ -206,10 +232,11 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   return {
-    users, roles, permissions, buckets, systemStats, loading, error,
+    users, roles, permissions, buckets, allTokens, systemStats, loading, error,
     sdeStatus, currentTask,
     fetchUsers, fetchRoles, fetchPermissions, createRole, deleteRole,
     assignRole, removeRole, assignPermission, removePermission, deactivateUser,
+    fetchAllTokens, adminRevokeToken,
     fetchBuckets, triggerBucketBackfill, updateBucket, fetchSystemStats,
     fetchSdeStatus, triggerSdeImport, triggerSdeUpload, fetchImportTaskStatus,
     startImportPolling, stopImportPolling,

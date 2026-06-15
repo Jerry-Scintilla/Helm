@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.permissions import require_permission
 from app.models.character import Character
 from app.models.corporation import Corporation, CorporationAsset, CorporationMember, CorporationWallet, CorporationWalletJournal
+from app.models.sde import SDEType
 from app.models.user import User
 from app.services.esi_names import resolve_entity_names
 from app.services.sde import enrich_type_icons, enrich_type_names_all_locales
@@ -205,13 +206,34 @@ async def get_corporation_assets(
     if corp is None:
         raise HTTPException(status_code=404, detail="Corporation not found")
 
-    asset_result = await db.execute(
-        select(CorporationAsset)
-        .where(CorporationAsset.corporation_id == corp.id)
-        .order_by(CorporationAsset.location_id)
-    )
-    assets = asset_result.scalars().all()
-    asset_rows = [
+    base = select(CorporationAsset).where(CorporationAsset.corporation_id == corp.id)
+
+    # 按资产名称（全语言）或地点 ID 过滤 —— 全部下推到 SQL，避免一次性加载整张资产表。
+    if q:
+        q_term = q.strip()
+        # Resolve type_ids whose name (any locale) matches, so name search runs
+        # in the DB instead of enriching every row. SDEType.name is JSONB; casting
+        # to text lets a single ILIKE cover all locales.
+        matching_type_ids = (await db.execute(
+            select(SDEType.type_id).where(
+                func.lower(cast(SDEType.name, String)).like(f"%{q_term.lower()}%")
+            )
+        )).scalars().all()
+        filters = [cast(CorporationAsset.location_id, String).like(f"%{q_term}%")]
+        if matching_type_ids:
+            filters.append(CorporationAsset.type_id.in_(matching_type_ids))
+        base = base.where(or_(*filters))
+
+    total = (await db.execute(
+        select(func.count()).select_from(base.subquery())
+    )).scalar_one()
+
+    rows = (await db.execute(
+        base.order_by(CorporationAsset.location_id)
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )).scalars().all()
+    items = [
         {
             "item_id": a.item_id,
             "type_id": a.type_id,
@@ -220,27 +242,9 @@ async def get_corporation_assets(
             "quantity": a.quantity,
             "is_singleton": a.is_singleton,
         }
-        for a in assets
+        for a in rows
     ]
-    await enrich_type_names_all_locales(asset_rows, id_field="type_id", name_field="type_name", db=db)
-
-    # 按资产名称（全语言）或地点 ID 过滤
-    if q:
-        q_lower = q.strip().lower()
-
-        def row_matches(row: dict) -> bool:
-            type_name = row.get("type_name")
-            if isinstance(type_name, dict):
-                if any(q_lower in str(v).lower() for v in type_name.values() if v):
-                    return True
-            elif type_name and q_lower in str(type_name).lower():
-                return True
-            return q_lower in str(row["location_id"])
-
-        asset_rows = [row for row in asset_rows if row_matches(row)]
-
-    total = len(asset_rows)
-    start = (page - 1) * per_page
-    paginated = asset_rows[start : start + per_page]
-    await enrich_type_icons(paginated, id_field="type_id", icon_field="icon_url", db=db)
-    return {"total": total, "page": page, "per_page": per_page, "items": paginated}
+    # Enrich only the current page.
+    await enrich_type_names_all_locales(items, id_field="type_id", name_field="type_name", db=db)
+    await enrich_type_icons(items, id_field="type_id", icon_field="icon_url", db=db)
+    return {"total": total, "page": page, "per_page": per_page, "items": items}

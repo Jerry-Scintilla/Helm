@@ -215,17 +215,19 @@ async def _background_refresh() -> None:
 
 
 def _is_update_available(installed_version: str | None, market_version: str | None) -> bool:
-    """True when both versions parse and the marketplace version is strictly newer.
+    """True when the marketplace offers a different/newer version than installed.
 
-    Unparseable versions are treated conservatively as "no update" so we never
-    nag the user to "update" to a version we can't actually compare.
+    When both parse as PEP 440, compare them (update only if strictly newer).
+    When either is an unparseable tag (e.g. a dev/git version), we cannot order
+    them — but a mere string difference still signals the marketplace has a
+    distinct release, so surface it rather than silently hiding the update.
     """
     if not installed_version or not market_version:
         return False
     try:
         return Version(market_version) > Version(installed_version)
     except InvalidVersion:
-        return False
+        return installed_version != market_version
 
 
 async def get_marketplace_index(

@@ -804,7 +804,11 @@ async def get_contracts(
     if direction == "outgoing":
         conditions.append(CharacterContract.issuer_id == char.character_id)
     elif direction == "incoming":
-        conditions.append(CharacterContract.issuer_id != char.character_id)
+        # "Incoming" = contracts directed at this character. Match the assignee
+        # positively rather than "not issued by me": `issuer_id != id` mis-handles
+        # NULL issuers (SQL three-valued logic drops them) and wrongly includes
+        # third-party contracts the character merely has visibility into.
+        conditions.append(CharacterContract.assignee_id == char.character_id)
     if contract_type:
         conditions.append(CharacterContract.type == contract_type)
     if status:
@@ -862,7 +866,7 @@ async def get_contract_detail(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("character.view")),
 ):
-    from app.cache import logical_get, logical_set
+    from app.cache import logical_get, logical_set, try_acquire_lock
     from app.services.contracts import fetch_contract_bids, fetch_contract_items
 
     char = await _get_character_for_user(character_id, current_user, db)
@@ -883,10 +887,15 @@ async def get_contract_detail(
         eid = base[f"{key}_id"]
         base[f"{key}_name"] = name_map.get(eid, {}).get("name") if eid else None
 
-    # Items/bids are immutable once the contract exists → lazy fetch + logical cache.
+    # Items/bids are immutable once the contract exists → lazy fetch + logical
+    # cache with stale-while-revalidate (return stale immediately, refresh in a
+    # lock-guarded background task) per the project cache strategy.
     cache_key = f"contracts:detail:{char.id}:{contract_id}:{locale}"
     cached, is_stale = await logical_get(cache_key)
-    if cached is not None and not is_stale:
+    if cached is not None:
+        if is_stale and await try_acquire_lock(f"contract-detail:{char.id}:{contract_id}:{locale}"):
+            asyncio.create_task(_refresh_contract_detail(
+                cache_key, char, contract_id, contract.source, contract.type, locale))
         base["items"] = cached.get("items", [])
         base["bids"] = cached.get("bids", [])
         return base
@@ -897,6 +906,22 @@ async def get_contract_detail(
     base["items"] = items
     base["bids"] = bids
     return base
+
+
+async def _refresh_contract_detail(
+    cache_key: str, char: Character, contract_id: int, source: str, ctype: str, locale: str
+) -> None:
+    """Background re-fetch of a contract's items/bids → overwrite cache entry."""
+    from app.cache import logical_set
+    from app.core.database import AsyncSessionLocal
+    from app.services.contracts import fetch_contract_bids, fetch_contract_items
+    try:
+        async with AsyncSessionLocal() as db:
+            items = await fetch_contract_items(char, contract_id, source, db, locale=locale)
+        bids = await fetch_contract_bids(char, contract_id, source) if ctype == "auction" else []
+        await logical_set(cache_key, {"items": items, "bids": bids}, 86400)
+    except Exception:
+        logger.exception("Background refresh failed for contract detail %s", contract_id)
 
 
 KILLMAIL_LIST_TTL = 600  # 10 min logical expiration
@@ -987,7 +1012,7 @@ async def get_killmail_detail(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("character.view")),
 ):
-    from app.cache import logical_get, logical_set
+    from app.cache import logical_get, logical_set, try_acquire_lock
     from app.esi.client import get_esi_client
     from app.services.killmails import format_detail
 
@@ -1001,19 +1026,43 @@ async def get_killmail_detail(
     if row is None:
         raise HTTPException(status_code=404, detail="Killmail not found")
 
-    # Killmails are immutable → cache the formatted detail aggressively.
+    # Killmails are immutable → cache the formatted detail aggressively, with
+    # stale-while-revalidate (lock-guarded background refresh) on expiry.
     cache_key = f"killmails:detail:{killmail_id}:{locale}"
     cached, is_stale = await logical_get(cache_key)
-    if cached is not None and not is_stale:
+    if cached is not None:
+        if is_stale and await try_acquire_lock(f"km-detail:{killmail_id}:{locale}"):
+            asyncio.create_task(_refresh_killmail_detail(
+                cache_key, killmail_id, row.killmail_hash, row.total_value, locale))
         return cached
 
     esi = get_esi_client()
     km = await esi.get(f"/killmails/{killmail_id}/{row.killmail_hash}/")
     if not isinstance(km, dict):
         raise HTTPException(status_code=502, detail="Failed to load killmail from ESI")
-    detail = await format_detail(km, db, locale=locale)
+    # Reuse the value priced at sync time so list and detail never disagree.
+    detail = await format_detail(km, db, locale=locale, total_value=row.total_value)
     await logical_set(cache_key, detail, 604800)  # 7 days
     return detail
+
+
+async def _refresh_killmail_detail(
+    cache_key: str, killmail_id: int, killmail_hash: str, total_value: float | None, locale: str
+) -> None:
+    """Background re-fetch of a killmail's formatted detail → overwrite cache."""
+    from app.cache import logical_set
+    from app.core.database import AsyncSessionLocal
+    from app.esi.client import get_esi_client
+    from app.services.killmails import format_detail
+    try:
+        km = await get_esi_client().get(f"/killmails/{killmail_id}/{killmail_hash}/")
+        if not isinstance(km, dict):
+            return
+        async with AsyncSessionLocal() as db:
+            detail = await format_detail(km, db, locale=locale, total_value=total_value)
+        await logical_set(cache_key, detail, 604800)
+    except Exception:
+        logger.exception("Background refresh failed for killmail detail %s", killmail_id)
 
 
 @router.post("/{character_id}/set-primary")

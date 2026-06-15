@@ -215,24 +215,34 @@ export const usePluginStore = defineStore('plugin', () => {
     // was deleted, i.e. the uninstall completed — and clear the state ourselves.
     stopUninstallPoll()
     let elapsed = 0
+    let consecutiveErrors = 0
+    const finish = async () => {
+      stopUninstallPoll()
+      uninstallInProgress.value = false
+      bumpCacheToken(name)
+      await fetchPlugins()
+    }
     _uninstallPoll = setInterval(async () => {
       elapsed += 2000
       try {
         await api.get(`/api/v1/admin/plugins/${name}/status`)
+        consecutiveErrors = 0
         // Still present → keep waiting (give up after 5 min as a safety valve).
-        if (elapsed >= 300000) {
-          stopUninstallPoll()
-          uninstallInProgress.value = false
-          await fetchPlugins()
-        }
+        if (elapsed >= 300000) await finish()
       } catch (err: any) {
-        if (err?.response?.status === 404) {
-          stopUninstallPoll()
-          uninstallInProgress.value = false
-          bumpCacheToken(name)
-          await fetchPlugins()
+        const status = err?.response?.status
+        if (status === 404) {
+          // DB record gone → uninstall completed.
+          await finish()
+        } else if (status === 401 || status === 403) {
+          // Session/permission lost — polling will never succeed; stop now.
+          await finish()
+        } else {
+          // Transient (network / 5xx). Tolerate a few, then give up so we don't
+          // hammer the API for the full 5 minutes.
+          consecutiveErrors += 1
+          if (consecutiveErrors >= 5) await finish()
         }
-        // Other errors (e.g. transient network) → keep polling.
       }
     }, 2000)
   }

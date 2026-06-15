@@ -49,6 +49,24 @@ async def logical_delete(key: str) -> None:
         await client.aclose()
 
 
+async def delete_prefix(prefix: str) -> int:
+    """Delete every key starting with `prefix`. Returns the count removed.
+
+    Used to invalidate a family of derived-response cache entries (e.g. all
+    paginated list pages for one entity) after a background sync writes fresh
+    rows to the DB, so the next read rebuilds the cache from the new data.
+    """
+    client = _client()
+    deleted = 0
+    try:
+        async for key in client.scan_iter(match=f"{prefix}*", count=200):
+            await client.delete(key)
+            deleted += 1
+        return deleted
+    finally:
+        await client.aclose()
+
+
 async def try_acquire_lock(key: str, ttl: int = 30) -> bool:
     """Distributed lock to prevent cache stampede. Returns True if acquired."""
     client = _client()

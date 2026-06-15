@@ -134,8 +134,13 @@ async def enrich_type_names_all_locales(
     return rows
 
 
+def type_icon_url(type_id: int, size: int = 32) -> str:
+    """Shared evetech.net type-icon URL builder (single source of truth)."""
+    return f"https://images.evetech.net/types/{type_id}/icon?size={size}"
+
+
 def _icon_url(type_id: int) -> str:
-    return f"https://images.evetech.net/types/{type_id}/icon?size=32"
+    return type_icon_url(type_id)
 
 
 async def resolve_type_icons_cached(

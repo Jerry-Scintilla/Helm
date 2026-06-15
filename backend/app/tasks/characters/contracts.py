@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
+from app.cache import delete_prefix
 from app.core.database import AsyncSessionLocal
 from app.esi.client import get_esi_client
 from app.models.character import Character
@@ -93,6 +94,10 @@ async def _update_contracts(character: Character) -> None:
                 await _upsert(character.id, data, "corporation")
         except Exception:
             pass
+
+    # Invalidate the derived list-response cache so the next read rebuilds it
+    # from the freshly-synced rows (the cache is keyed off DB id, all pages).
+    await delete_prefix(f"contracts:list:{character.id}:")
 
 
 @celery_app.task(name="app.tasks.characters.contracts.update_contracts")

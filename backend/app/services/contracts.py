@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.esi.client import get_esi_client
 from app.models.character import Character
-from app.services.sde import resolve_type_names
+from app.services.sde import resolve_type_names, type_icon_url
 
 CONTRACT_TYPE_LABELS = {
     "item_exchange": "物品交换",
@@ -32,10 +32,6 @@ CONTRACT_STATUS_LABELS = {
     "deleted": "已删除",
     "reversed": "已撤销",
 }
-
-
-def _type_icon(type_id: int, size: int = 32) -> str:
-    return f"https://images.evetech.net/types/{type_id}/icon?size={size}"
 
 
 def parse_dt(value: Any) -> datetime | None:
@@ -83,7 +79,7 @@ async def fetch_contract_items(
             "quantity": it.get("quantity"),
             "is_included": it.get("is_included", True),
             "is_singleton": it.get("is_singleton", False),
-            "icon_url": _type_icon(tid) if tid else None,
+            "icon_url": type_icon_url(tid) if tid else None,
         })
     # Offered items first (included), then requested items.
     items.sort(key=lambda x: (not x["is_included"], x["type_name"]))

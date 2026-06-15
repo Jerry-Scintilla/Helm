@@ -122,7 +122,13 @@ function handleLangSelect(key: string) {
         :options="adminMenuOptions"
         @select="handleAdminMenu"
       >
-        <button class="icon-btn" :title="t('header.adminTitle')" @click="router.push('/admin/system')">⚙</button>
+        <button class="icon-btn" :title="t('header.adminTitle')" @click="router.push('/admin/system')">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor"
+            stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 1.6 13 3.4 V7.6 C13 10.6 10.9 12.9 8 14 C5.1 12.9 3 10.6 3 7.6 V3.4 Z" />
+            <path d="M5.9 8.1 7.3 9.6 10.2 6.2" />
+          </svg>
+        </button>
       </n-dropdown>
 
       <!-- Character switcher -->
@@ -140,7 +146,13 @@ function handleLangSelect(key: string) {
 
       <!-- User menu -->
       <n-dropdown trigger="click" :options="userMenuOptions" @select="handleUserMenu">
-        <button class="icon-btn" :title="t('header.userMenu')">⬡</button>
+        <button class="icon-btn" :title="t('header.userMenu')">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor"
+            stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="8" cy="5.4" r="2.6" />
+            <path d="M3.3 13.4 C3.3 10.5 5.4 9.4 8 9.4 C10.6 9.4 12.7 10.5 12.7 13.4" />
+          </svg>
+        </button>
       </n-dropdown>
     </div>
   </div>

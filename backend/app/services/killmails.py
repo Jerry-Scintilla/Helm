@@ -1,16 +1,10 @@
 """Killmail valuation and detail formatting (ESI killmails are public + immutable)."""
-from datetime import datetime
-from typing import Any
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.contracts import parse_dt
 from app.services.esi_names import resolve_entity_names
 from app.services.market import get_average_prices
-from app.services.sde import resolve_type_names
-
-
-def _type_icon(type_id: int, size: int = 32) -> str:
-    return f"https://images.evetech.net/types/{type_id}/icon?size={size}"
+from app.services.sde import resolve_type_names, type_icon_url
 
 
 def _ship_render(type_id: int) -> str:
@@ -42,15 +36,6 @@ def killmail_value(km: dict, prices: dict[int, float]) -> float:
     return total
 
 
-def _parse_dt(value: Any) -> datetime | None:
-    if not value:
-        return None
-    try:
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    except ValueError:
-        return None
-
-
 async def build_summary(km: dict, character_eve_id: int, prices: dict[int, float]) -> dict:
     """Build a row payload for character_killmails from a full killmail dict."""
     victim = km.get("victim", {}) or {}
@@ -59,14 +44,21 @@ async def build_summary(km: dict, character_eve_id: int, prices: dict[int, float
         "is_loss": victim.get("character_id") == character_eve_id,
         "ship_type_id": victim.get("ship_type_id"),
         "solar_system_id": km.get("solar_system_id"),
-        "killmail_time": _parse_dt(km.get("killmail_time")),
+        "killmail_time": parse_dt(km.get("killmail_time")),
         "attacker_count": len(attackers),
         "total_value": killmail_value(km, prices),
     }
 
 
-async def format_detail(km: dict, db: AsyncSession, locale: str = "en") -> dict:
-    """Resolve names/types and produce a structured detail payload for the UI."""
+async def format_detail(
+    km: dict, db: AsyncSession, locale: str = "en", total_value: float | None = None
+) -> dict:
+    """Resolve names/types and produce a structured detail payload for the UI.
+
+    When `total_value` is provided (the value persisted at sync time), it is
+    reused verbatim so the list and detail views never disagree, and the extra
+    market-price round-trip is skipped.
+    """
     victim = km.get("victim", {}) or {}
     attackers = km.get("attackers", []) or []
 
@@ -86,7 +78,8 @@ async def format_detail(km: dict, db: AsyncSession, locale: str = "en") -> dict:
     type_ids = [i for i in type_ids if i]
     name_map = await resolve_entity_names(entity_ids) if entity_ids else {}
     type_map = await resolve_type_names(type_ids, db, locale=locale) if type_ids else {}
-    prices = await get_average_prices()
+    if total_value is None:
+        total_value = killmail_value(km, await get_average_prices())
 
     def _en(i: int | None) -> str | None:
         return name_map.get(i, {}).get("name") if i else None
@@ -100,7 +93,7 @@ async def format_detail(km: dict, db: AsyncSession, locale: str = "en") -> dict:
         items_out.append({
             "type_id": tid,
             "type_name": _tn(tid) or (f"类型 #{tid}" if tid else "—"),
-            "icon_url": _type_icon(tid) if tid else None,
+            "icon_url": type_icon_url(tid) if tid else None,
             "dropped": it.get("quantity_dropped") or 0,
             "destroyed": it.get("quantity_destroyed") or 0,
         })
@@ -112,7 +105,7 @@ async def format_detail(km: dict, db: AsyncSession, locale: str = "en") -> dict:
             "alliance_name": _en(a.get("alliance_id")),
             "ship_type_id": a.get("ship_type_id"),
             "ship_name": _tn(a.get("ship_type_id")),
-            "ship_icon": _type_icon(a.get("ship_type_id")) if a.get("ship_type_id") else None,
+            "ship_icon": type_icon_url(a.get("ship_type_id")) if a.get("ship_type_id") else None,
             "weapon_name": _tn(a.get("weapon_type_id")),
             "damage_done": a.get("damage_done", 0),
             "final_blow": a.get("final_blow", False),
@@ -128,7 +121,7 @@ async def format_detail(km: dict, db: AsyncSession, locale: str = "en") -> dict:
         "killmail_time": km.get("killmail_time"),
         "solar_system_id": km.get("solar_system_id"),
         "solar_system_name": _en(km.get("solar_system_id")),
-        "total_value": killmail_value(km, prices),
+        "total_value": total_value,
         "victim": {
             "character_name": _en(victim.get("character_id")),
             "corporation_name": _en(victim.get("corporation_id")),

@@ -27,9 +27,10 @@ from app.models.sde import SDEType
 from app.services.contracts import (
     CONTRACT_STATUS_LABELS as _CONTRACT_STATUS_LABELS,
     CONTRACT_TYPE_LABELS as _CONTRACT_TYPE_LABELS,
+    fetch_contract_items,
 )
 from app.services.esi_names import resolve_entity_names
-from app.services.sde import resolve_type_names
+from app.services.sde import type_icon_url
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +44,6 @@ _STRUCTURE_CATEGORY_IDS = {65, 40}  # 65 = Structure (Upwell), 40 = Sovereignty 
 # NPC station ID range (see esi-docs id-ranges).
 _STATION_ID_MIN = 60_000_000
 _STATION_ID_MAX = 64_000_000
-
-
-def _type_icon(type_id: int, size: int = 64) -> str:
-    return f"https://images.evetech.net/types/{type_id}/icon?size={size}"
 
 
 _BR_RE = re.compile(r"<br\s*/?>", re.IGNORECASE)
@@ -174,7 +171,7 @@ async def _resolve_showinfo(
     meta = await _type_meta(type_id, db, locale)
     type_name = meta["name"] or f"类型 #{type_id}"
     description = meta["description"]
-    icon = _type_icon(type_id)
+    icon = type_icon_url(type_id, 64)
     is_structure_type = meta["category_id"] in _STRUCTURE_CATEGORY_IDS
 
     # showinfo on a type only → item type card.
@@ -368,32 +365,10 @@ async def _resolve_contract(
     if match.get("date_expired"):
         fields.append({"label": "过期时间", "value": str(match["date_expired"])})
 
-    # Contract item list — read from the same source the contract was found in.
-    if source == "corporation":
-        items_path = f"/corporations/{char.corporation_id}/contracts/{contract_id}/items/"
-    else:
-        items_path = f"/characters/{char.character_id}/contracts/{contract_id}/items/"
-    items: list[dict] = []
-    try:
-        raw_items = await esi.get(
-            items_path,
-            token=char.access_token, refresh_token=char.refresh_token,
-            character_id=char.character_id,
-        )
-    except Exception:
-        raw_items = None
-    if isinstance(raw_items, list) and raw_items:
-        type_ids = [it["type_id"] for it in raw_items if it.get("type_id")]
-        item_name_map = await resolve_type_names(type_ids, db, locale=locale)
-        for it in raw_items:
-            tid = it.get("type_id")
-            items.append({
-                "type_id": tid,
-                "type_name": item_name_map.get(tid) or f"类型 #{tid}",
-                "quantity": it.get("quantity"),
-                "is_included": it.get("is_included", True),
-                "icon_url": _type_icon(tid, 32) if tid else None,
-            })
+    # Contract item list — reuse the shared fetcher (same source the contract
+    # was found in) so the mail-link card and the contracts endpoints stay in
+    # lockstep on item shape, naming and sort order.
+    items = await fetch_contract_items(char, contract_id, source or "character", db, locale=locale)
 
     title = match.get("title") or _CONTRACT_TYPE_LABELS.get(ctype, "合同")
     return {

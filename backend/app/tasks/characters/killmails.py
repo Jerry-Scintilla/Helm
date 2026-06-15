@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
+from app.cache import delete_prefix
 from app.core.database import AsyncSessionLocal
 from app.esi.client import get_esi_client
 from app.models.character import Character
@@ -54,6 +55,7 @@ async def _update_killmails(character: Character) -> None:
     prices = await get_average_prices()
     now = datetime.now(UTC)
 
+    rows: list[dict] = []
     for entry in new_entries:
         km_id = entry.get("killmail_id")
         km_hash = entry.get("killmail_hash")
@@ -66,20 +68,28 @@ async def _update_killmails(character: Character) -> None:
         if not isinstance(km, dict):
             continue
         summary = await build_summary(km, character.character_id, prices)
-        values = {
+        rows.append({
             "character_id": character.id,
             "killmail_id": km_id,
             "killmail_hash": km_hash,
             "updated_at": now,
             **summary,
-        }
-        async with AsyncSessionLocal() as db:
-            await db.execute(
-                insert(CharacterKillmail)
-                .values(**values)
-                .on_conflict_do_nothing(constraint="uq_char_killmail")
-            )
-            await db.commit()
+        })
+
+    if not rows:
+        return
+
+    # Single batched insert + commit instead of one round-trip per killmail.
+    async with AsyncSessionLocal() as db:
+        await db.execute(
+            insert(CharacterKillmail)
+            .values(rows)
+            .on_conflict_do_nothing(constraint="uq_char_killmail")
+        )
+        await db.commit()
+
+    # Rebuild the derived list-response cache from the freshly-synced rows.
+    await delete_prefix(f"killmails:list:{character.id}:")
 
 
 @celery_app.task(name="app.tasks.characters.killmails.update_killmails")

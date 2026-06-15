@@ -52,6 +52,7 @@ backend/celerybeat-schedule.dir
 
 # Editor
 .claude/
+.agents/
 .idea/
 .DS_Store
 *.suo
@@ -63,6 +64,7 @@ backend/celerybeat-schedule.dir
 # 文档
 Markdown/
 CLAUDE.md
+AGENTS.md
 
 # SDE uploads
 data/sde/uploads/

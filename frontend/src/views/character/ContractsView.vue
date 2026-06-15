@@ -78,7 +78,7 @@ function statusTagType(status: string): 'default' | 'info' | 'success' | 'warnin
   return 'default'
 }
 function fmtIsk(n: number | null): string {
-  if (!n) return '—'
+  if (n === null || n === undefined) return '—'
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' ISK'
 }
 function fmtNum(n: number | null, suffix = ''): string {
@@ -90,8 +90,12 @@ function fmtDate(dt: string | null): string {
   return new Date(dt).toLocaleString()
 }
 function priceReward(c: Contract): string {
-  if (c.price) return fmtIsk(c.price)
-  if (c.reward) return '+' + fmtIsk(c.reward)
+  // Couriers are defined by their reward; everything else by its price. Use
+  // null checks (not falsy) so a genuine 0-ISK (free/giveaway) contract shows
+  // "0 ISK" instead of being indistinguishable from an unknown value.
+  if (c.type === 'courier') return c.reward != null ? '+' + fmtIsk(c.reward) : '—'
+  if (c.price != null) return fmtIsk(c.price)
+  if (c.reward != null) return '+' + fmtIsk(c.reward)
   return '—'
 }
 
@@ -159,8 +163,8 @@ function rowProps(row: Contract) {
             <div class="d-field"><span>{{ t('contracts.from') }}</span><span>{{ detail.issuer_name || '—' }}</span></div>
             <div class="d-field"><span>{{ t('contracts.to') }}</span><span>{{ detail.assignee_name || '—' }}</span></div>
             <div v-if="detail.acceptor_name" class="d-field"><span>{{ t('contracts.acceptor') }}</span><span>{{ detail.acceptor_name }}</span></div>
-            <div v-if="detail.price" class="d-field"><span>{{ t('contracts.price') }}</span><span>{{ fmtIsk(detail.price) }}</span></div>
-            <div v-if="detail.reward" class="d-field"><span>{{ t('contracts.reward') }}</span><span>{{ fmtIsk(detail.reward) }}</span></div>
+            <div v-if="detail.price != null" class="d-field"><span>{{ t('contracts.price') }}</span><span>{{ fmtIsk(detail.price) }}</span></div>
+            <div v-if="detail.reward != null" class="d-field"><span>{{ t('contracts.reward') }}</span><span>{{ fmtIsk(detail.reward) }}</span></div>
             <div v-if="detail.collateral" class="d-field"><span>{{ t('contracts.collateral') }}</span><span>{{ fmtIsk(detail.collateral) }}</span></div>
             <div v-if="detail.buyout" class="d-field"><span>{{ t('contracts.buyout') }}</span><span>{{ fmtIsk(detail.buyout) }}</span></div>
             <div v-if="detail.volume" class="d-field"><span>{{ t('contracts.volume') }}</span><span>{{ fmtNum(detail.volume, ' m³') }}</span></div>
